@@ -1,38 +1,32 @@
-node_modules/
-dist/
+```
+# Compiled and build artifacts
+*.pdf
+*.pyc
+__pycache__/
+
+# Dependencies
+.venv/
+venv/
+pip-log.txt
+pipenv.lock
+
+# Logs and temp files
 *.log
-.DS_Store
+*.tmp
+*.swp
+
+# Environment
 .env
+.env.local
+*.env.*
+
+# Editors
 .vscode/
 .idea/
-.obsidian/
 
-# Build outputs
-*.tsbuildinfo
-
-# Test coverage
-coverage/
-
-# Runtime
-*.session
-*.session-journal
-
-# Config (keep template)
-config.yaml
-!config.example.yaml
-
-# Sensitive data
-wallet.json
-*.db
-telegram_session.txt
-telegram-offset.json
-.reference/
-
-# Specs & working docs (local only)
-specs/
-docs/plans/
-TODOS/
-
-# TTS voice models (large binaries)
-piper-voices/
-
+# Generated files
+*.py[cod]
+*$py.class
+*.so
+.Python
+```
