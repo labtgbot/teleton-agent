@@ -1,0 +1,384 @@
+.widget {
+  background: linear-gradient(135deg, #1a0a2e 0%, #16213e 100%);
+  border-radius: 12px;
+  padding: 20px;
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.title {
+  margin: 0 0 20px 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+  border-bottom: 2px solid #6f42c1;
+  padding-bottom: 10px;
+}
+
+/* Stats Overview */
+.statsOverview {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.statItem {
+  background: rgba(111, 66, 193, 0.15);
+  padding: 15px;
+  border-radius: 8px;
+  text-align: center;
+  border: 1px solid rgba(111, 66, 193, 0.3);
+}
+
+.statValue {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #6f42c1;
+}
+
+.statLabel {
+  font-size: 0.75rem;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.tab {
+  flex: 1;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  border-radius: 8px;
+  color: #aaa;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.tab.active {
+  background: #6f42c1;
+  color: #fff;
+}
+
+/* Graph Container */
+.graphContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.graphLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  align-items: center;
+  font-size: 0.8rem;
+  color: #aaa;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.graphVisualization {
+  min-height: 300px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  padding: 15px;
+}
+
+.emptyState {
+  text-align: center;
+  color: #666;
+  padding: 40px 20px;
+  font-style: italic;
+}
+
+.nodeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.nodeCard {
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 3px solid;
+  border-radius: 6px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.nodeCard:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(3px);
+}
+
+.nodeCard.selected {
+  background: rgba(111, 66, 193, 0.3);
+  box-shadow: 0 0 10px rgba(111, 66, 193, 0.5);
+}
+
+.nodeName {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nodeType {
+  font-size: 0.7rem;
+  color: #888;
+  text-transform: uppercase;
+}
+
+.nodeDetails {
+  margin-top: 15px;
+  padding: 15px;
+  background: rgba(111, 66, 193, 0.2);
+  border-radius: 8px;
+}
+
+.nodeDetails h4 {
+  margin: 0 0 10px 0;
+  color: #6f42c1;
+}
+
+.nodeDetails p {
+  margin: 5px 0;
+  font-size: 0.85rem;
+}
+
+.nodeDetails pre {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* Timeline */
+.timelineContainer {
+  min-height: 300px;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.timelineEvent {
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 3px solid;
+  border-radius: 6px;
+  padding: 15px;
+  transition: all 0.3s ease;
+}
+
+.timelineEvent:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.eventHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.eventType {
+  font-size: 0.75rem;
+  color: #6f42c1;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.eventTime {
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.eventDescription {
+  margin: 0 0 10px 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: #ddd;
+}
+
+.eventFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.eventMetrics {
+  display: flex;
+  gap: 15px;
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.eventTags {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.tag {
+  background: rgba(111, 66, 193, 0.3);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  color: #b19cd9;
+}
+
+/* Skills */
+.skillsContainer {
+  min-height: 300px;
+}
+
+.skillsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 15px;
+}
+
+.skillCard {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 15px;
+  transition: all 0.3s ease;
+}
+
+.skillCard:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-3px);
+}
+
+.skillHeader {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 15px;
+}
+
+.skillIcon {
+  font-size: 2rem;
+}
+
+.skillName {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.skillCategory {
+  font-size: 0.75rem;
+  color: #888;
+  text-transform: uppercase;
+}
+
+.skillMetrics {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.skillMetric {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.skillMetric .metricLabel {
+  min-width: 70px;
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+.skillMetric .metricValue {
+  min-width: 40px;
+  text-align: right;
+  font-weight: 600;
+  color: #fff;
+}
+
+.progressBar {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.lastExecuted {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #666;
+}
+
+/* Loading & Error */
+.loading,
+.error {
+  text-align: center;
+  padding: 40px;
+  color: #aaa;
+}
+
+.error {
+  color: #dc3545;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .statsOverview {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .skillsGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .graphLegend {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

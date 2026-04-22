@@ -8,6 +8,10 @@ import { LogsWidget } from './LogsWidget';
 import { AgentSettingsWidget } from './AgentSettingsWidget';
 import { TelegramSettingsWidget } from './TelegramSettingsWidget';
 import { ExecSettingsWidget } from './ExecSettingsWidget';
+import { SuperAgentWidget } from './SuperAgentWidget';
+import { SwarmVisualizerWidget } from './SwarmVisualizerWidget';
+import { MemoryManagerWidget } from './MemoryManagerWidget';
+import { DaoSecurityWidget } from './DaoSecurityWidget';
 import { QuickActions } from '../QuickActions';
 import { HealthCheck } from '../HealthCheck';
 import { StatusData } from '../../lib/api';
@@ -26,7 +30,7 @@ const ActivityHeatmap = lazy(() =>
 const STORAGE_KEY = 'dashboard-layout';
 
 // Widget IDs
-export type WidgetId = 'stats' | 'logs' | 'agent' | 'telegram' | 'exec' | 'quick-actions' | 'token-chart' | 'tool-chart' | 'activity-heatmap' | 'health-check';
+export type WidgetId = 'stats' | 'logs' | 'agent' | 'telegram' | 'exec' | 'quick-actions' | 'token-chart' | 'tool-chart' | 'activity-heatmap' | 'health-check' | 'super-agent' | 'swarm' | 'memory' | 'dao-security';
 
 interface WidgetMeta {
   id: WidgetId;
@@ -115,6 +119,38 @@ const WIDGET_REGISTRY: WidgetMeta[] = [
       md: { i: 'logs', x: 0, y: 33, w: 10, h: 8, minH: 4 },
     },
   },
+  {
+    id: 'super-agent',
+    title: 'Super-Agent Dashboard',
+    defaultItem: {
+      lg: { i: 'super-agent', x: 0, y: 41, w: 6, h: 10, minH: 6 },
+      md: { i: 'super-agent', x: 0, y: 41, w: 5, h: 10, minH: 6 },
+    },
+  },
+  {
+    id: 'swarm',
+    title: 'Swarm Visualizer',
+    defaultItem: {
+      lg: { i: 'swarm', x: 6, y: 41, w: 6, h: 10, minH: 6 },
+      md: { i: 'swarm', x: 5, y: 41, w: 5, h: 10, minH: 6 },
+    },
+  },
+  {
+    id: 'memory',
+    title: 'Memory Manager',
+    defaultItem: {
+      lg: { i: 'memory', x: 0, y: 51, w: 12, h: 8, minH: 5 },
+      md: { i: 'memory', x: 0, y: 51, w: 10, h: 8, minH: 5 },
+    },
+  },
+  {
+    id: 'dao-security',
+    title: 'DAO & Security',
+    defaultItem: {
+      lg: { i: 'dao-security', x: 0, y: 59, w: 12, h: 8, minH: 5 },
+      md: { i: 'dao-security', x: 0, y: 59, w: 10, h: 8, minH: 5 },
+    },
+  },
 ];
 
 function buildDefaultLayouts(visibleIds: WidgetId[]): ResponsiveLayouts {
@@ -182,8 +218,8 @@ function InnerGrid(props: DashboardGridProps & { width: number }) {
   const { showExec, width } = props;
 
   const ALL_VISIBLE: WidgetId[] = showExec
-    ? ['stats', 'agent', 'telegram', 'exec', 'quick-actions', 'token-chart', 'tool-chart', 'activity-heatmap', 'health-check', 'logs']
-    : ['stats', 'agent', 'telegram', 'quick-actions', 'token-chart', 'tool-chart', 'activity-heatmap', 'health-check', 'logs'];
+    ? ['stats', 'agent', 'telegram', 'exec', 'quick-actions', 'token-chart', 'tool-chart', 'activity-heatmap', 'health-check', 'logs', 'super-agent', 'swarm', 'memory', 'dao-security']
+    : ['stats', 'agent', 'telegram', 'quick-actions', 'token-chart', 'tool-chart', 'activity-heatmap', 'health-check', 'logs', 'super-agent', 'swarm', 'memory', 'dao-security'];
 
   const saved = loadSaved();
   const [layouts, setLayouts] = useState<ResponsiveLayouts>(
@@ -308,6 +344,10 @@ function InnerGrid(props: DashboardGridProps & { width: number }) {
             </Suspense>
           )}
           {id === 'health-check' && <HealthCheck />}
+          {id === 'super-agent' && <SuperAgentWidget />}
+          {id === 'swarm' && <SwarmVisualizerWidget />}
+          {id === 'memory' && <MemoryManagerWidget />}
+          {id === 'dao-security' && <DaoSecurityWidget />}
         </WidgetWrapper>
       </div>
     );
