@@ -1,0 +1,161 @@
+/* ConsciousnessIndicator.css */
+.consciousness-indicator h3 {
+  margin: 0 0 20px 0;
+  color: #2d3748;
+  font-size: 20px;
+}
+
+.current-state-display {
+  text-align: center;
+  padding: 30px;
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  border-radius: 12px;
+  color: white;
+  margin-bottom: 25px;
+}
+
+.state-circle {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 4px solid white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 15px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.state-icon {
+  font-size: 48px;
+}
+
+.state-name {
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 5px;
+}
+
+.state-description {
+  font-size: 16px;
+  opacity: 0.95;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.activity-timeline,
+.level-distribution {
+  margin-top: 25px;
+}
+
+.activity-timeline h4,
+.level-distribution h4 {
+  margin: 0 0 15px 0;
+  color: #4a5568;
+  font-size: 16px;
+}
+
+.timeline-track {
+  max-height: 300px;
+  overflow-y: auto;
+  border-left: 3px solid #e2e8f0;
+  padding-left: 20px;
+}
+
+.timeline-event {
+  position: relative;
+  padding: 12px 15px;
+  margin-bottom: 10px;
+  background: #f7fafc;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+  transition: all 0.3s ease;
+}
+
+.timeline-event:hover {
+  transform: translateX(5px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.event-time {
+  font-size: 12px;
+  color: #718096;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.event-level {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #667eea;
+  background: #ebf4ff;
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-right: 10px;
+}
+
+.event-thought {
+  font-size: 13px;
+  color: #2d3748;
+  display: block;
+  margin: 8px 0;
+}
+
+.event-duration {
+  font-size: 11px;
+  color: #a0aec0;
+}
+
+.distribution-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.distribution-item {
+  display: grid;
+  grid-template-columns: 120px 1fr 60px;
+  align-items: center;
+  gap: 15px;
+}
+
+.dist-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4a5568;
+}
+
+.dist-bar-container {
+  height: 24px;
+  background: #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.dist-bar {
+  height: 100%;
+  border-radius: 12px;
+  transition: width 0.5s ease;
+}
+
+.dist-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2d3748;
+  text-align: right;
+}
+
+@media (max-width: 768px) {
+  .distribution-item {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  .dist-value {
+    text-align: left;
+  }
+}
