@@ -7,6 +7,20 @@ These files are intended to be used as the basis for creating individual GitHub 
 
 ## Task Files
 
+### 🧠 Super-Agent Architecture Improvements (NEW)
+
+| # | File | Area | Complexity | Status |
+|---|------|------|-----------|--------|
+| 30 | [30-constitution-autonomy-levels.md](30-constitution-autonomy-levels.md) | Constitutional AI + Autonomy Levels (0-4) | High | ✅ Implemented |
+| 31 | _31-consciousness-stack.md_ | Multi-Level Consciousness (ToT, GoT) | Very High | 📋 Planned |
+| 32 | _32-tri-component-memory.md_ | Episodic + Semantic + Procedural Memory | Very High | 📋 Planned |
+| 33 | _33-self-improvement-loop.md_ | Continuous Learning & Improvement | Very High | 📋 Planned |
+| 34 | _34-agent-swarm.md_ | Multi-Agent Swarm Architecture | Very High | 📋 Planned |
+| 35 | _35-predictive-analytics.md_ | Proactive Need Prediction | High | 📋 Planned |
+| 36 | _36-world-model-causal.md_ | World Model + Causal Reasoning | Very High | 📋 Planned |
+
+---
+
 ### UI/UX Improvements (Existing Pages)
 
 | # | File | Area | Complexity |
