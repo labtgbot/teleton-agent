@@ -9,6 +9,7 @@ import type { SDKDependencies } from "../sdk/index.js";
 import type { AgentLifecycle } from "../agent/lifecycle.js";
 import type { UserHookEvaluator } from "../agent/hooks/user-hook-evaluator.js";
 import type { AutonomousTaskManager } from "../autonomous/manager.js";
+import type { SwarmCoordinator } from "../autonomous/swarm/coordinator.js";
 
 export interface LoadedPlugin {
   name: string;
@@ -44,6 +45,7 @@ export interface WebUIServerDeps {
   marketplace?: MarketplaceDeps;
   userHookEvaluator?: UserHookEvaluator | null;
   autonomousManager?: AutonomousTaskManager;
+  swarmCoordinator?: SwarmCoordinator;
 }
 
 // ── Marketplace types ───────────────────────────────────────────────
