@@ -4,3 +4,7 @@ export { LogsWidget } from './LogsWidget';
 export { AgentSettingsWidget } from './AgentSettingsWidget';
 export { TelegramSettingsWidget } from './TelegramSettingsWidget';
 export { ExecSettingsWidget } from './ExecSettingsWidget';
+export { SuperAgentWidget } from './SuperAgentWidget';
+export { SwarmVisualizerWidget } from './SwarmVisualizerWidget';
+export { MemoryManagerWidget } from './MemoryManagerWidget';
+export { DaoSecurityWidget } from './DaoSecurityWidget';

@@ -2946,3 +2946,24 @@ button.btn-lg {
 .autonomous-indeterminate-bar {
   animation: autonomous-indeterminate 1.4s ease-in-out infinite;
 }
+
+/* ---- Super-Agent Widget Styles ---- */
+
+.super-agent-widget,
+.swarm-visualizer-widget,
+.memory-manager-widget,
+.dao-security-widget {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.super-agent-widget > div,
+.swarm-visualizer-widget > div,
+.memory-manager-widget > div,
+.dao-security-widget > div {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
