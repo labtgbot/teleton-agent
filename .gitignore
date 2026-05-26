@@ -11,51 +11,52 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.py.class
 .Python
 env/
 venv/
 .venv/
-.ENV
+.venv.bak/
+.python-version
 pip-log.txt
 pip-delete-this-directory.txt
 .tox/
+
+# Environment variables
+.env
+.env.local
+*.env.*
+!.env.example
+.ENV
+
+# Testing & Coverage
 .coverage
 .coverage.*
 .cache
 nosetests.xml
 coverage.xml
 *.cover
+.pytest_cache/
+.mypy_cache/
+coverage/
+htmlcov/
 
-# Python version management
-.python-version
+# Logs & Temp files
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+*.bak
+*.backup
+.DS_Store
+Thumbs.db
 
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
-*.tmp
 
-# Environment
-.env
-.env.local
-.env.*
-!.env.example
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Testing
-coverage/
-htmlcov/
-.pytest_cache/
-.mypy_cache/
-
-# Logs
-*.log
-	
 # Compressed files
 *.zip
 *.gz
