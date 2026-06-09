@@ -147,19 +147,22 @@ export async function runCommand(
         finish(1, null);
       });
 
-      let killTimer: ReturnType<typeof setTimeout>;
       const timeoutTimer = setTimeout(() => {
         timedOut = true;
         log.warn({ command, timeout }, "Command timed out, sending SIGTERM");
         try {
-          process.kill(-child.pid!, "SIGTERM");
+          if (child.pid != null) {
+            process.kill(-child.pid, "SIGTERM");
+          }
         } catch {
           // Process already dead
         }
-        killTimer = setTimeout(() => {
+        setTimeout(() => {
           log.warn({ command }, "Grace period expired, sending SIGKILL");
           try {
-            process.kill(-child.pid!, "SIGKILL");
+            if (child.pid != null) {
+              process.kill(-child.pid, "SIGKILL");
+            }
           } catch {
             // Process already dead
           }
