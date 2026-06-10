@@ -1,6 +1,6 @@
 import { Type } from "@sinclair/typebox";
 import type { Tool, ToolExecutor, ToolResult } from "../types.js";
-import type { Config, ExecConfig } from "../../../config/schema.js";
+import type { ExecConfig } from "../../../config/schema.js";
 import { runCommand, ensureSandboxDir } from "./runner.js";
 import { execConcurrency } from "./concurrency.js";
 import { insertAuditEntry, updateAuditEntry } from "./audit.js";
@@ -50,9 +50,7 @@ export function createExecInstallExecutor(
 
     const command = buildCommand(packages);
 
-    // Concurrency check
     await execConcurrency.acquire(execConfig.security.max_concurrent);
-    let acquired = true;
 
     let auditId: number | undefined;
     if (execConfig.audit.log_commands) {
@@ -115,7 +113,7 @@ export function createExecInstallExecutor(
             : {}),
       };
     } finally {
-      if (acquired) execConcurrency.release();
+      execConcurrency.release();
     }
   };
 }

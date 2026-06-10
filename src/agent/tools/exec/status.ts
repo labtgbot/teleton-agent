@@ -29,9 +29,7 @@ export function createExecStatusExecutor(
   return async (_params, context): Promise<ToolResult> => {
     const { max_output } = execConfig.limits;
 
-    // Concurrency check
     await execConcurrency.acquire(execConfig.security.max_concurrent);
-    let acquired = true;
 
     let auditId: number | undefined;
     if (execConfig.audit.log_commands) {
@@ -86,7 +84,7 @@ export function createExecStatusExecutor(
         data: results,
       };
     } finally {
-      if (acquired) execConcurrency.release();
+      execConcurrency.release();
     }
   };
 }
