@@ -9,6 +9,9 @@ import pkg from "./package.json" with { type: "json" };
 const external = [
   ...Object.keys(pkg.dependencies ?? {}),
   ...Object.keys(pkg.optionalDependencies ?? {}),
+  // Packages not installed that are imported somewhere but blocked by pnpm/vendor constraints
+  // Explicitly listed here so tsup knows not to resolve them
+  "ton",
 ];
 
 // Clean dist/ but preserve dist/web/ (Vite frontend build)
