@@ -1,13 +1,19 @@
 import { spawn, type SpawnOptions } from "child_process";
-import type { ExecResult, RunOptions } from "./types.js";
+import fs from "fs";
+import type { ExecResult, RunOptions, RunSecurityOptions } from "./types.js";
 import { createLogger } from "../../../utils/logger.js";
 
 const log = createLogger("Exec");
 
 const KILL_GRACE_MS = 5000;
 
-export function runCommand(command: string, options: RunOptions): Promise<ExecResult> {
+export function runCommand(
+  command: string,
+  options: RunOptions,
+  security?: RunSecurityOptions
+): Promise<ExecResult> {
   const { timeout, maxOutput } = options;
+  const { cwd, env } = security ?? {};
   const startTime = Date.now();
 
   return new Promise((resolve) => {
@@ -17,11 +23,14 @@ export function runCommand(command: string, options: RunOptions): Promise<ExecRe
     let timedOut = false;
     let resolved = false;
 
-    const child = spawn("bash", ["-c", command], {
-      detached: true,
+    const spawnOpts: SpawnOptions & { encoding: string; cwd?: string; env?: NodeJS.ProcessEnv } = {
       stdio: ["ignore", "pipe", "pipe"],
       encoding: "utf8",
-    } as SpawnOptions & { encoding: string });
+    };
+    if (cwd) spawnOpts.cwd = cwd;
+    if (env) spawnOpts.env = env;
+
+    const child = spawn("bash", ["-c", command], spawnOpts);
 
     const finish = (exitCode: number | null, signal: string | null) => {
       if (resolved) return;
@@ -92,5 +101,12 @@ function killProcessGroup(pid: number, signal: NodeJS.Signals): void {
     process.kill(-pid, signal);
   } catch {
     // Process already dead — expected
+  }
+}
+
+/** Ensure the sandbox directory exists on disk. */
+export function ensureSandboxDir(sandboxDir: string): void {
+  if (!fs.existsSync(sandboxDir)) {
+    fs.mkdirSync(sandboxDir, { recursive: true, mode: 0o755 });
   }
 }

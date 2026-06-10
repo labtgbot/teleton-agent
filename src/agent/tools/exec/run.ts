@@ -1,7 +1,7 @@
 import { Type } from "@sinclair/typebox";
-import type { Tool, ToolExecutor, ToolResult } from "../types.js";
-import type { ExecConfig } from "../../../config/schema.js";
-import { runCommand } from "./runner.js";
+import type { Tool, ToolExecutor, ToolResult, ToolContext } from "../types.js";
+import type { Config, ExecConfig } from "../../../config/schema.js";
+import { runCommand, ensureSandboxDir } from "./runner.js";
 import { insertAuditEntry, updateAuditEntry } from "./audit.js";
 import type Database from "better-sqlite3";
 
@@ -24,9 +24,24 @@ export function isCommandAllowed(command: string, commandAllowlist: string[]): b
   const trimmed = command.trim();
   return commandAllowlist.some((pattern) => {
     const p = pattern.trim();
-    // Exact match or command starts with the pattern followed by whitespace
     return trimmed === p || trimmed.startsWith(p + " ");
   });
+}
+
+function buildFilteredEnv(envWhitelist: string[]): NodeJS.ProcessEnv {
+  const allowed = new Set(envWhitelist);
+  const filtered: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (allowed.has(key) && value !== undefined) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
+}
+
+function isUserAdmin(senderId: number, config?: Config): boolean {
+  if (!config) return false;
+  return config.telegram.admin_ids.includes(senderId);
 }
 
 export function createExecRunExecutor(
@@ -46,6 +61,35 @@ export function createExecRunExecutor(
       }
     }
 
+    // YOLO mode: require admin user
+    if (execConfig.mode === "yolo" && execConfig.security.yolo_confirmation) {
+      if (!isUserAdmin(context.senderId, context.config)) {
+        await notifyAdmin(context, command);
+        return {
+          success: false,
+          error: "YOLO mode requires admin privileges. Your command was logged and admin notified.",
+        };
+      }
+    }
+
+    // Ensure sandbox directory exists
+    const sandboxDir = execConfig.security.sandbox_dir;
+    if (sandboxDir) {
+      try {
+        ensureSandboxDir(sandboxDir);
+      } catch {
+        // If sandbox can't be created, proceed without cwd restriction
+      }
+    }
+
+    // Build security options
+    const security = {
+      cwd: sandboxDir || undefined,
+      env: execConfig.security.env_whitelist.length > 0
+        ? buildFilteredEnv(execConfig.security.env_whitelist)
+        : undefined,
+    };
+
     let auditId: number | undefined;
     if (execConfig.audit.log_commands) {
       auditId = insertAuditEntry(db, {
@@ -61,7 +105,7 @@ export function createExecRunExecutor(
     const result = await runCommand(command, {
       timeout: timeout * 1000,
       maxOutput: max_output,
-    });
+    }, security);
 
     const status = result.timedOut ? "timeout" : result.exitCode === 0 ? "success" : "failed";
 
@@ -94,4 +138,15 @@ export function createExecRunExecutor(
           : {}),
     };
   };
+}
+
+async function notifyAdmin(context: ToolContext, command: string): Promise<void> {
+  try {
+    await context.bridge.sendMessage({
+      chatId: context.chatId,
+      text: `⚠️ Non-admin user ${context.senderId} attempted yolo command: ${command}`,
+    });
+  } catch {
+    // Best-effort notification
+  }
 }

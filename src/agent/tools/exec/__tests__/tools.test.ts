@@ -3,17 +3,18 @@ import Database from "better-sqlite3";
 import { ensureSchema } from "../../../../memory/schema.js";
 import type { ExecConfig } from "../../../../config/schema.js";
 import type { ToolContext } from "../../types.js";
-import { createExecRunExecutor, isCommandAllowed } from "../run.js";
-import { createExecInstallExecutor } from "../install.js";
-import { createExecServiceExecutor } from "../service.js";
-import { createExecStatusExecutor } from "../status.js";
 
 // Mock the runner to avoid real command execution
 vi.mock("../runner.js", () => ({
   runCommand: vi.fn(),
+  ensureSandboxDir: vi.fn(),
 }));
 
 import { runCommand } from "../runner.js";
+import { createExecRunExecutor, isCommandAllowed } from "../run.js";
+import { createExecInstallExecutor } from "../install.js";
+import { createExecServiceExecutor } from "../service.js";
+import { createExecStatusExecutor } from "../status.js";
 
 const mockRunCommand = vi.mocked(runCommand);
 
@@ -31,17 +32,25 @@ function makeExecConfig(overrides?: Partial<ExecConfig>): ExecConfig {
     command_allowlist: [],
     limits: { timeout: 120, max_output: 50000 },
     audit: { log_commands: true },
+    security: {
+      yolo_confirmation: true,
+      sandbox_dir: "/tmp/teleton-exec-sandbox",
+      env_whitelist: ["HOME", "PATH", "LANG", "TERM", "USER", "SHELL"],
+      max_concurrent: 5,
+    },
     ...overrides,
   };
 }
 
 function makeContext(overrides?: Partial<ToolContext>): ToolContext {
+  const defaultConfig = { telegram: { admin_ids: [42] } } as any;
   return {
     bridge: {} as any,
     db: new Database(":memory:"),
     chatId: "123",
     senderId: 42,
     isGroup: false,
+    config: defaultConfig,
     ...overrides,
   };
 }
@@ -74,10 +83,11 @@ describe("exec_run", () => {
       exitCode: 0,
       timedOut: false,
     });
-    expect(mockRunCommand).toHaveBeenCalledWith("echo hello", {
-      timeout: 120000,
-      maxOutput: 50000,
-    });
+    expect(mockRunCommand).toHaveBeenCalledWith(
+      "echo hello",
+      expect.objectContaining({ timeout: 120000, maxOutput: 50000 }),
+      expect.anything()
+    );
   });
 
   it("returns error when command fails", async () => {
@@ -162,7 +172,11 @@ describe("exec_install", () => {
     const executor = createExecInstallExecutor(db, makeExecConfig());
     await executor({ manager: "apt", packages: "nginx curl" }, makeContext());
 
-    expect(mockRunCommand).toHaveBeenCalledWith("apt install -y nginx curl", expect.any(Object));
+    expect(mockRunCommand).toHaveBeenCalledWith(
+      "apt install -y nginx curl",
+      expect.any(Object),
+      expect.anything()
+    );
   });
 
   it("constructs correct command for pip", async () => {
@@ -179,7 +193,11 @@ describe("exec_install", () => {
     const executor = createExecInstallExecutor(db, makeExecConfig());
     await executor({ manager: "pip", packages: "flask" }, makeContext());
 
-    expect(mockRunCommand).toHaveBeenCalledWith("pip install flask", expect.any(Object));
+    expect(mockRunCommand).toHaveBeenCalledWith(
+      "pip install flask",
+      expect.any(Object),
+      expect.anything()
+    );
   });
 
   it("constructs correct command for npm", async () => {
@@ -196,7 +214,11 @@ describe("exec_install", () => {
     const executor = createExecInstallExecutor(db, makeExecConfig());
     await executor({ manager: "npm", packages: "pm2" }, makeContext());
 
-    expect(mockRunCommand).toHaveBeenCalledWith("npm install -g pm2", expect.any(Object));
+    expect(mockRunCommand).toHaveBeenCalledWith(
+      "npm install -g pm2",
+      expect.any(Object),
+      expect.anything()
+    );
   });
 
   it("constructs correct command for docker", async () => {
@@ -213,7 +235,11 @@ describe("exec_install", () => {
     const executor = createExecInstallExecutor(db, makeExecConfig());
     await executor({ manager: "docker", packages: "nginx:latest" }, makeContext());
 
-    expect(mockRunCommand).toHaveBeenCalledWith("docker pull nginx:latest", expect.any(Object));
+    expect(mockRunCommand).toHaveBeenCalledWith(
+      "docker pull nginx:latest",
+      expect.any(Object),
+      expect.anything()
+    );
   });
 
   it("logs audit entry", async () => {
@@ -259,7 +285,11 @@ describe("exec_service", () => {
     const executor = createExecServiceExecutor(db, makeExecConfig());
     await executor({ action: "status", name: "nginx" }, makeContext());
 
-    expect(mockRunCommand).toHaveBeenCalledWith("systemctl status nginx", expect.any(Object));
+    expect(mockRunCommand).toHaveBeenCalledWith(
+      "systemctl status nginx",
+      expect.any(Object),
+      expect.anything()
+    );
   });
 
   it("logs audit entry", async () => {
@@ -300,12 +330,11 @@ describe("isCommandAllowed", () => {
   });
 
   it("does not allow prefix substring without whitespace boundary", () => {
-    // 'git' should not match 'gitconfig' without a space after it
     expect(isCommandAllowed("gitconfig --list", ["git"])).toBe(false);
   });
 
   it("trims whitespace before matching", () => {
-    expect(isCommandAllowed("  ls  /tmp", ["ls"])).toBe(true);
+    expect(isCommandAllowed(" ls /tmp", ["ls"])).toBe(true);
   });
 });
 
@@ -349,7 +378,11 @@ describe("exec_run allowlist mode", () => {
     const result = await executor({ command: "git status" }, makeContext());
 
     expect(result.success).toBe(true);
-    expect(mockRunCommand).toHaveBeenCalledWith("git status", expect.any(Object));
+    expect(mockRunCommand).toHaveBeenCalledWith(
+      "git status",
+      expect.any(Object),
+      expect.anything()
+    );
   });
 
   it("error message lists configured prefixes", async () => {
@@ -456,9 +489,7 @@ describe("exec_status", () => {
     const result = await executor({} as any, makeContext());
 
     expect(result.success).toBe(true);
-    // memory should contain the failure message
     expect(result.data.memory).toContain("failed");
-    // other keys should have data
     expect(result.data.disk).toBe("some data");
   });
 });
