@@ -1,9 +1,11 @@
 import { spawn, type SpawnOptions } from "child_process";
-import type { ExecResult, RunOptions } from "./types.js";
+import fs from "fs";
+import type { ExecResult, RunOptions, RunSecurityOptions } from "./types.js";
 import { createLogger } from "../../../utils/logger.js";
-import fs from "fs/promises";
 
 const log = createLogger("Exec");
+
+const KILL_GRACE_MS = 5000;
 
 export const MAX_CONCURRENT = 10;
 let activeCount = 0;
@@ -41,29 +43,15 @@ export function sanitizeEnv(env: NodeJS.ProcessEnv): Record<string, string | und
       out[key] = undefined;
       continue;
     }
+    out[key] = value;
   }
   return out;
 }
 
-export async function validateCwd(cwd: string): Promise<void> {
-  try {
-    const stat = await fs.stat(cwd);
-    if (!stat.isDirectory()) {
-      throw new Error(`Exec sandbox is not a directory: ${cwd}`);
-    }
-  } catch {
-    try {
-      await fs.mkdir(cwd, { recursive: true });
-    } catch {
-      throw new Error(`Cannot create exec sandbox directory: ${cwd}`);
-    }
-  }
-}
-
-export async function runCommand(
+export function runCommand(
   command: string,
   options: RunOptions,
-  sandboxCwd?: string
+  security?: RunSecurityOptions
 ): Promise<ExecResult> {
   if (activeCount >= MAX_CONCURRENT) {
     throw new Error(`Max concurrent processes (${MAX_CONCURRENT}) reached`);
@@ -71,106 +59,109 @@ export async function runCommand(
   activeCount++;
 
   const { timeout, maxOutput } = options;
+  const { cwd, env: securityEnv } = security ?? {};
   const startTime = Date.now();
-  const cwd = sandboxCwd ?? process.cwd();
+  const spawnCwd = cwd ?? process.cwd();
 
-  try {
-    if (sandboxCwd) {
-      await validateCwd(cwd);
-    }
+  return new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let truncated = false;
+    let timedOut = false;
+    let resolved = false;
 
-    return new Promise((resolve) => {
-      let stdout = "";
-      let stderr = "";
-      let truncated = false;
-      let timedOut = false;
-      let resolved = false;
+    // Use security-provided env whitelist, or fall back to sanitized env
+    const env = securityEnv ?? sanitizeEnv(process.env);
 
-      const env = sanitizeEnv(process.env);
+    const spawnOpts: SpawnOptions & { encoding: string; cwd?: string; env?: NodeJS.ProcessEnv } = {
+      stdio: ["ignore", "pipe", "pipe"],
+      encoding: "utf8",
+      cwd: spawnCwd,
+      env,
+    };
 
-      log.info({ command, cwd }, "Executing command");
+    const child = spawn("bash", ["-c", command], spawnOpts);
 
-      const child = spawn("bash", ["-c", command], {
-        stdio: ["ignore", "pipe", "pipe"],
-        cwd,
-        env,
-        encoding: "utf8",
-      } as SpawnOptions & { encoding: string });
+    const finish = (exitCode: number | null, signal: string | null) => {
+      if (resolved) return;
+      resolved = true;
+      activeCount--;
+      clearTimeout(timeoutTimer);
+      clearTimeout(killTimer);
+      resolve({
+        stdout,
+        stderr,
+        exitCode,
+        signal,
+        duration: Date.now() - startTime,
+        truncated,
+        timedOut,
+      });
+    };
 
-      const finish = (exitCode: number | null, signal: string | null) => {
-        if (resolved) return;
-        resolved = true;
-        clearTimeout(timeoutTimer);
-        resolve({
-          stdout,
-          stderr,
-          exitCode,
-          signal,
-          duration: Date.now() - startTime,
-          truncated,
-          timedOut,
-        });
-      };
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
 
-      child.stdout?.setEncoding("utf8");
-      child.stderr?.setEncoding("utf8");
-
-      child.stdout?.on("data", (chunk: string) => {
-        if (stdout.length < maxOutput) {
-          stdout += chunk;
-          if (stdout.length > maxOutput) {
-            stdout = stdout.slice(0, maxOutput);
-            truncated = true;
-          }
+    child.stdout?.on("data", (chunk: string) => {
+      if (stdout.length < maxOutput) {
+        stdout += chunk;
+        if (stdout.length > maxOutput) {
+          stdout = stdout.slice(0, maxOutput);
+          truncated = true;
         }
-      });
+      }
+    });
 
-      child.stderr?.on("data", (chunk: string) => {
-        if (stderr.length < maxOutput) {
-          stderr += chunk;
-          if (stderr.length > maxOutput) {
-            stderr = stderr.slice(0, maxOutput);
-            truncated = true;
-          }
+    child.stderr?.on("data", (chunk: string) => {
+      if (stderr.length < maxOutput) {
+        stderr += chunk;
+        if (stderr.length > maxOutput) {
+          stderr = stderr.slice(0, maxOutput);
+          truncated = true;
         }
-      });
+      }
+    });
 
-      child.on("close", (code, sig) => {
-        activeCount--;
-        finish(code, sig);
-      });
+    child.on("close", (code, sig) => {
+      finish(code, sig);
+    });
 
-      child.on("error", (err) => {
-        activeCount--;
-        log.error({ err }, "Spawn error");
-        stderr += err.message;
-        finish(1, null);
-      });
+    child.on("error", (err) => {
+      log.error({ err }, "Spawn error");
+      stderr += err.message;
+      finish(1, null);
+    });
 
-      const timeoutTimer = setTimeout(() => {
-        timedOut = true;
-        log.warn({ command, timeout }, "Command timed out, sending SIGTERM");
+    // Timeout handling: SIGTERM then SIGKILL
+    let killTimer: ReturnType<typeof setTimeout>;
+    const timeoutTimer = setTimeout(() => {
+      timedOut = true;
+      log.warn({ command, timeout }, "Command timed out, sending SIGTERM");
+      if (child.pid != null) {
         try {
-          if (child.pid != null) {
-            process.kill(-child.pid, "SIGTERM");
-          }
+          process.kill(-child.pid, "SIGTERM");
         } catch {
           // Process already dead
         }
-        setTimeout(() => {
-          log.warn({ command }, "Grace period expired, sending SIGKILL");
+      }
+
+      killTimer = setTimeout(() => {
+        log.warn({ command }, "Grace period expired, sending SIGKILL");
+        if (child.pid != null) {
           try {
-            if (child.pid != null) {
-              process.kill(-child.pid, "SIGKILL");
-            }
+            process.kill(-child.pid, "SIGKILL");
           } catch {
             // Process already dead
           }
-        }, 5000);
-      }, timeout);
-    });
-  } catch (err) {
-    activeCount--;
-    throw err;
+        }
+      }, KILL_GRACE_MS);
+    }, timeout);
+  });
+}
+
+/** Ensure the sandbox directory exists on disk. */
+export function ensureSandboxDir(sandboxDir: string): void {
+  if (!fs.existsSync(sandboxDir)) {
+    fs.mkdirSync(sandboxDir, { recursive: true, mode: 0o755 });
   }
 }

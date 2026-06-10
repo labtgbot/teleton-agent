@@ -1,7 +1,8 @@
 import { Type } from "@sinclair/typebox";
 import type { Tool, ToolExecutor, ToolResult } from "../types.js";
 import type { ExecConfig } from "../../../config/schema.js";
-import { runCommand } from "./runner.js";
+import { runCommand, ensureSandboxDir } from "./runner.js";
+import { execConcurrency } from "./concurrency.js";
 import { insertAuditEntry, updateAuditEntry } from "./audit.js";
 import type Database from "better-sqlite3";
 
@@ -28,6 +29,10 @@ export function createExecStatusExecutor(
   return async (_params, context): Promise<ToolResult> => {
     const { max_output } = execConfig.limits;
 
+    // Concurrency check
+    await execConcurrency.acquire(execConfig.security.max_concurrent);
+    let acquired = true;
+
     let auditId: number | undefined;
     if (execConfig.audit.log_commands) {
       auditId = insertAuditEntry(db, {
@@ -40,34 +45,59 @@ export function createExecStatusExecutor(
       });
     }
 
-    // Run each command individually so partial failures don't stop the rest
-    const results: Record<string, string> = {};
-    const startTime = Date.now();
+    try {
+      const sandboxDir = execConfig.security.sandbox_dir;
+      if (sandboxDir) ensureSandboxDir(sandboxDir);
 
-    for (const { key, command } of STATUS_COMMANDS) {
-      const result = await runCommand(command, {
-        timeout: 10000,
-        maxOutput: max_output,
-      });
-      results[key] =
-        result.exitCode === 0 ? result.stdout.trim() : `(failed: ${result.stderr.trim()})`;
+      const security = {
+        cwd: sandboxDir || undefined,
+        env: execConfig.security.env_whitelist.length > 0
+          ? buildFilteredEnv(execConfig.security.env_whitelist)
+          : undefined,
+      };
+
+      // Run each command individually so partial failures don't stop the rest
+      const results: Record<string, string> = {};
+      const startTime = Date.now();
+
+      for (const { key, command } of STATUS_COMMANDS) {
+        const result = await runCommand(command, {
+          timeout: 10000,
+          maxOutput: max_output,
+        }, security);
+        results[key] =
+          result.exitCode === 0 ? result.stdout.trim() : `(failed: ${result.stderr.trim()})`;
+      }
+
+      const duration = Date.now() - startTime;
+
+      if (auditId !== undefined) {
+        updateAuditEntry(db, auditId, {
+          status: "success",
+          exitCode: 0,
+          duration,
+          stdout: JSON.stringify(results),
+          truncated: false,
+        });
+      }
+
+      return {
+        success: true,
+        data: results,
+      };
+    } finally {
+      if (acquired) execConcurrency.release();
     }
-
-    const duration = Date.now() - startTime;
-
-    if (auditId !== undefined) {
-      updateAuditEntry(db, auditId, {
-        status: "success",
-        exitCode: 0,
-        duration,
-        stdout: JSON.stringify(results),
-        truncated: false,
-      });
-    }
-
-    return {
-      success: true,
-      data: results,
-    };
   };
+}
+
+function buildFilteredEnv(envWhitelist: string[]): NodeJS.ProcessEnv {
+  const allowed = new Set(envWhitelist);
+  const filtered: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (allowed.has(key) && value !== undefined) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
 }
