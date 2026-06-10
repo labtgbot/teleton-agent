@@ -363,6 +363,27 @@ const _ExecAuditObject = z.object({
   log_commands: z.boolean().default(true).describe("Log every command to SQLite audit table"),
 });
 
+const _ExecSecurityMeta = z.object({
+  yolo_confirmation: z
+    .boolean()
+    .default(true)
+    .describe("Require explicit admin confirmation before executing commands in yolo mode"),
+  sandbox_dir: z
+    .string()
+    .default("/tmp/teleton-exec-sandbox")
+    .describe("Restricted working directory for command execution (prevents reading sensitive files)"),
+  env_whitelist: z
+    .array(z.string())
+    .default(["HOME", "PATH", "LANG", "TERM", "USER", "SHELL"])
+    .describe("Environment variables allowed to pass to subprocesses (all others stripped)"),
+  max_concurrent: z
+    .number()
+    .min(1)
+    .max(20)
+    .default(5)
+    .describe("Max parallel command executions allowed"),
+});
+
 const _ExecObject = z.object({
   mode: z
     .enum(["off", "allowlist", "yolo"])
@@ -388,6 +409,9 @@ const _ExecObject = z.object({
     ),
   limits: _ExecLimitsObject.default(_ExecLimitsObject.parse({})),
   audit: _ExecAuditObject.default(_ExecAuditObject.parse({})),
+  security: _ExecSecurityMeta.default(_ExecSecurityMeta.parse({})).describe(
+    "Security controls for exec mode (confirmation prompts, sandboxing, env restrictions)"
+  ),
 });
 
 const _CapabilitiesObject = z.object({
