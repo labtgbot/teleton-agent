@@ -25,7 +25,7 @@ export interface ThoughtProcess {
   input: string;
   output: string;
   confidence: number;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   timestamp: number;
   children?: ThoughtProcess[];
 }
@@ -72,7 +72,7 @@ export class ConsciousnessStack {
   /**
    * Main entry point: Process input through appropriate consciousness level
    */
-  async process(input: string, context?: any): Promise<ThoughtProcess> {
+  async process(input: string, context?: unknown): Promise<ThoughtProcess> {
     const level = this.determineLevel(input, context);
     this.state.currentLevel = level;
 
@@ -96,11 +96,11 @@ export class ConsciousnessStack {
    * Level 1: Reactive - Immediate response without deep planning
    * Use case: Simple queries, known patterns, emergency stops
    */
-  private async processReactive(input: string, context?: any): Promise<ThoughtProcess> {
+  private async processReactive(input: string, _context?: unknown): Promise<ThoughtProcess> {
     const prompt = `You are in REACTIVE mode. Provide immediate, direct response.
-    
+
 Input: ${input}
-Context: ${JSON.stringify(context || {})}
+Context: ${JSON.stringify(_context || {})}
 
 Response:`;
 
@@ -123,7 +123,7 @@ Response:`;
    * Level 2: Tactical - Short-term planning and execution
    * Use case: Multi-step tasks, tool coordination, error recovery
    */
-  private async processTactical(input: string, context?: any): Promise<ThoughtProcess> {
+  private async processTactical(input: string, _context?: unknown): Promise<ThoughtProcess> {
     const prompt = `You are in TACTICAL mode. Create a short-term plan (3-5 steps).
 
 Input: ${input}
@@ -156,7 +156,7 @@ Plan:`;
    * Level 3: Strategic - Long-term alignment and resource management
    * Use case: Complex projects, resource allocation, priority conflicts
    */
-  private async processStrategic(input: string, context?: any): Promise<ThoughtProcess> {
+  private async processStrategic(input: string, _context?: unknown): Promise<ThoughtProcess> {
     const selfModelSummary = JSON.stringify(this.state.selfModel);
     
     const prompt = `You are in STRATEGIC mode. Align actions with long-term goals.
@@ -192,7 +192,7 @@ Strategic Assessment:`;
    * Level 4: Meta-Cognition - Thinking about thinking
    * Use case: Self-improvement, pattern analysis, process optimization
    */
-  private async processMetaCognition(input: string, context?: any): Promise<ThoughtProcess> {
+  private async processMetaCognition(input: string, _context?: unknown): Promise<ThoughtProcess> {
     const recentThoughts = this.state.contextWindow.slice(-5);
     
     const prompt = `You are in META-COGNITION mode. Analyze your own thinking process.
@@ -230,7 +230,8 @@ Meta-Analysis:`;
   /**
    * Determine appropriate consciousness level for input
    */
-  private determineLevel(input: string, context?: any): ConsciousnessLevel {
+  private determineLevel(input: string, context?: unknown): ConsciousnessLevel {
+    const ctx = context as Record<string, unknown> | undefined;
     // Meta-cognition triggers
     if (input.toLowerCase().includes('analyze my performance') ||
         input.toLowerCase().includes('how can i improve') ||
@@ -242,7 +243,7 @@ Meta-Analysis:`;
     if (input.toLowerCase().includes('long-term') ||
         input.toLowerCase().includes('strategy') ||
         input.toLowerCase().includes('allocate resources') ||
-        (context?.complexity && context.complexity > 0.8)) {
+        (ctx?.complexity && (ctx.complexity as number) > 0.8)) {
       return ConsciousnessLevel.STRATEGIC;
     }
 
@@ -250,7 +251,7 @@ Meta-Analysis:`;
     if (input.toLowerCase().includes('plan') ||
         input.toLowerCase().includes('steps') ||
         input.toLowerCase().includes('execute') ||
-        (context?.steps && context.steps > 1)) {
+        (ctx?.steps && (ctx.steps as number) > 1)) {
       return ConsciousnessLevel.TACTICAL;
     }
 

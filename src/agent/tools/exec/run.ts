@@ -37,6 +37,13 @@ export function createExecRunExecutor(
     const { command } = params;
     const { timeout, max_output } = execConfig.limits;
 
+    if (execConfig.mode === "yolo") {
+      return {
+        success: false,
+        error: "YOLO exec mode is disabled for security. Use 'allowlist' mode with explicit command_allowlist instead. See issue #10 (CWE-78).",
+      };
+    }
+
     if (execConfig.mode === "allowlist") {
       if (!isCommandAllowed(command, execConfig.command_allowlist)) {
         return {

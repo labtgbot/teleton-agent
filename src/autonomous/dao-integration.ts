@@ -245,8 +245,6 @@ export class DaoIntegrationModule {
     confidence: number;
   }> {
     // AI-анализ доказательств и аргументов сторон
-    const reasoning: string[] = [];
-    
     if (caseData.evidence.length === 0) {
       return {
         verdict: 'abstain',

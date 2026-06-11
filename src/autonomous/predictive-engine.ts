@@ -9,13 +9,13 @@
  */
 
 import { z } from 'zod';
-import { AgentMemory } from '../memory/agent-memory';
-import { Logger } from '../utils/logger';
+import type { AgentMemory } from '../memory/agent-memory';
+import { createLogger } from '../utils/logger';
 
-const logger = new Logger('PredictiveEngine');
+const logger = createLogger('PredictiveEngine');
 
-// Схемы данных
-const ActivityPatternSchema = z.object({
+// Схемы данных — используются только для вывода типов через z.infer
+const _ActivityPatternSchema = z.object({
   userId: z.string(),
   actionType: z.string(),
   hourOfDay: z.number().min(0).max(23),
@@ -25,17 +25,17 @@ const ActivityPatternSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 
-const AnomalySchema = z.object({
+const _AnomalySchema = z.object({
   type: z.enum(['TIME', 'FREQUENCY', 'VALUE', 'BEHAVIOR']),
   severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
   description: z.string(),
   detectedAt: z.number(),
-  baseline: z.any(),
-  actualValue: z.any(),
+  baseline: z.unknown(),
+  actualValue: z.unknown(),
   deviationScore: z.number(),
 });
 
-const PredictionSchema = z.object({
+const _PredictionSchema = z.object({
   targetAction: z.string(),
   probability: z.number().min(0).max(1),
   estimatedTime: z.number(), // timestamp
@@ -43,7 +43,7 @@ const PredictionSchema = z.object({
   requiredResources: z.array(z.string()).optional(),
 });
 
-const SuggestionSchema = z.object({
+const _SuggestionSchema = z.object({
   id: z.string(),
   type: z.enum(['OPTIMIZATION', 'SECURITY', 'EFFICIENCY', 'NEW_FEATURE']),
   title: z.string(),
@@ -52,14 +52,20 @@ const SuggestionSchema = z.object({
   implementationSteps: z.array(z.string()),
 });
 
-export type ActivityPattern = z.infer<typeof ActivityPatternSchema>;
-export type Anomaly = z.infer<typeof AnomalySchema>;
-export type Prediction = z.infer<typeof PredictionSchema>;
-export type Suggestion = z.infer<typeof SuggestionSchema>;
+export type ActivityPattern = z.infer<typeof _ActivityPatternSchema>;
+export type Anomaly = z.infer<typeof _AnomalySchema>;
+export type Prediction = z.infer<typeof _PredictionSchema>;
+export type Suggestion = z.infer<typeof _SuggestionSchema>;
+
+interface Baseline {
+  activeHours: number[];
+  maxActionsPerHour: Record<string, number>;
+  avgResponseTime: number;
+}
 
 export class PredictiveEngine {
   private patterns: Map<string, ActivityPattern[]> = new Map();
-  private baselines: Map<string, any> = new Map();
+  private baselines: Map<string, Baseline> = new Map();
   private suggestionQueue: Suggestion[] = [];
 
   constructor(private memory: AgentMemory) {}
@@ -67,7 +73,7 @@ export class PredictiveEngine {
   /**
    * 📈 Predict Needs: Анализ исторических данных для предсказания следующих действий
    */
-  async predictNeeds(userId: string, context: Record<string, any>): Promise<Prediction[]> {
+  async predictNeeds(userId: string, _context?: Record<string, unknown>): Promise<Prediction[]> {
     logger.info(`Generating predictions for user ${userId}`);
     
     const userPatterns = this.patterns.get(userId) || [];
@@ -103,7 +109,7 @@ export class PredictiveEngine {
   /**
    * 🚨 Detect Anomalies: Выявление отклонений от нормального поведения
    */
-  async detectAnomalies(userId: string, currentActivity: any): Promise<Anomaly[]> {
+  async detectAnomalies(userId: string, currentActivity: { timestamp?: number; actionType?: string; count?: number }): Promise<Anomaly[]> {
     const anomalies: Anomaly[] = [];
     const baseline = this.baselines.get(userId);
 
@@ -222,19 +228,20 @@ export class PredictiveEngine {
     const patterns: ActivityPattern[] = [];
 
     // Простая агрегация (в реальности использовать ML модель)
-    const aggregation: Record<string, any> = {};
-    
+    const aggregation: Record<string, { count: number; hours: number[] }> = {};
+
     for (const event of history) {
-      const key = `${event.type}-${new Date(event.timestamp).getHours()}`;
+      const ev = event as Record<string, unknown>;
+      const key = `${ev.type}-${new Date(ev.timestamp as number).getHours()}`;
       if (!aggregation[key]) {
         aggregation[key] = { count: 0, hours: [] };
       }
       aggregation[key].count++;
-      aggregation[key].hours.push(new Date(event.timestamp).getHours());
+      aggregation[key].hours.push(new Date(ev.timestamp as number).getHours());
     }
 
     // Преобразование в паттерны
-    Object.entries(aggregation).forEach(([key, data]: [string, any]) => {
+    Object.entries(aggregation).forEach(([key, data]) => {
       const [actionType, hourStr] = key.split('-');
       const hour = parseInt(hourStr);
       
