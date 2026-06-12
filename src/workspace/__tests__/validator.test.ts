@@ -210,6 +210,9 @@ describe("Workspace Path Validator", () => {
 
     describe("Symlink detection", () => {
       it("should reject symbolic links", () => {
+        // On Windows, creating symlinks requires elevated privileges — skip
+        if (process.platform === "win32") return;
+
         const linkPath = join(tempWorkspace, "symlink.txt");
         const targetPath = join(tempWorkspace, "test.txt");
 

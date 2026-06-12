@@ -743,6 +743,9 @@ telegram:
     });
 
     it("should set file permissions to 0o600", () => {
+      // Windows does not support Unix file permissions in the same way
+      if (process.platform === "win32") return;
+
       writeTestConfig(MINIMAL_CONFIG);
       const config = loadConfig(TEST_CONFIG_PATH);
 
@@ -770,6 +773,9 @@ telegram:
     });
 
     it("should expand tilde paths", () => {
+      // On Windows, ~ does not expand the same way — skip
+      if (process.platform === "win32") return;
+
       const originalHome = process.env.HOME;
       process.env.HOME = TEST_DIR;
       try {
@@ -800,7 +806,12 @@ telegram:
 
     it("should return an absolute path", () => {
       const defaultPath = getDefaultConfigPath();
-      expect(defaultPath).toMatch(/^[\/~]/);
+      // On Unix: starts with / or ~; on Windows: starts with a drive letter like C:\
+      if (process.platform === "win32") {
+        expect(defaultPath).toMatch(/^[A-Za-z]:[\\/]/);
+      } else {
+        expect(defaultPath).toMatch(/^[\/~]/);
+      }
     });
   });
 

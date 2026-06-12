@@ -994,14 +994,16 @@ export function createTelegramSocialSDK(bridge: TelegramBridge, log: PluginLogge
         const { basename } = await import("path");
 
         const { resolve, normalize } = await import("path");
-        const { homedir } = await import("os");
+        const { homedir, tmpdir } = await import("os");
         const { realpathSync } = await import("fs");
 
         const filePath = realpathSync(resolve(normalize(mediaPath)));
         const home = homedir();
+        const tmp = tmpdir();
         const teletonWorkspace = `${home}/.teleton/workspace/`;
         const allowedPrefixes = [
           "/tmp/",
+          tmp,
           `${home}/Downloads/`,
           `${home}/Pictures/`,
           `${home}/Videos/`,
