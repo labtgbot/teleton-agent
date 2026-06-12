@@ -8,7 +8,7 @@
  * - Spreading activation for retrieval
  */
 
-import { logger } from '../../utils/logger';
+import { logger } from '../../utils/logger.js';
 
 export interface Entity {
   id: string;

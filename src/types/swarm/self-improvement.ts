@@ -32,14 +32,17 @@ export enum PatternCategory {
 /**
  * Схема отдельного события опыта
  */
+const ExperienceTypeEnum = z.enum([ExperienceType.SUCCESS, ExperienceType.FAILURE, ExperienceType.PARTIAL_SUCCESS, ExperienceType.NEAR_MISS, ExperienceType.BREAKTHROUGH]);
+const PatternCategoryEnum = z.enum([PatternCategory.DECISION_MAKING, PatternCategory.TOOL_USAGE, PatternCategory.COMMUNICATION, PatternCategory.PROBLEM_SOLVING, PatternCategory.RESOURCE_MANAGEMENT, PatternCategory.ERROR_HANDLING, PatternCategory.OPTIMIZATION]);
+
 export const ExperienceEventSchema = z.object({
   id: z.string().uuid(),
   timestamp: z.number(),
-  type: z.nativeEnum(ExperienceType),
+  type: ExperienceTypeEnum,
   taskId: z.string().optional(),
   action: z.string(),
-  context: z.record(z.unknown()),
-  outcome: z.record(z.unknown()),
+  context: z.record(z.string(), z.unknown()),
+  outcome: z.record(z.string(), z.unknown()),
   metrics: z.object({
     duration: z.number().optional(),
     tokensUsed: z.number().optional(),
@@ -59,7 +62,7 @@ export type ExperienceEvent = z.infer<typeof ExperienceEventSchema>;
  */
 export const PatternSchema = z.object({
   id: z.string().uuid(),
-  category: z.nativeEnum(PatternCategory),
+  category: PatternCategoryEnum,
   name: z.string(),
   description: z.string(),
   frequency: z.number().int().positive(),
@@ -118,7 +121,7 @@ export const TestResultSchema = z.object({
   startTime: z.number(),
   endTime: z.number(),
   method: z.enum(['simulation', 'canary', 'ab_test', 'shadow']),
-  metrics: z.record(z.number()),
+  metrics: z.record(z.string(), z.number()),
   success: z.boolean(),
   findings: z.array(z.string()),
   recommendations: z.array(z.string()),

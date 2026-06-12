@@ -5,7 +5,7 @@
  * Each level defines what actions require human approval vs can be executed automatically.
  */
 
-import type { ConstitutionalCheckResult } from './constitution.js';
+import type { ConstitutionCheckResult } from './constitution.js';
 
 /**
  * Autonomy Level definitions:
@@ -54,7 +54,7 @@ export interface ApprovalRequest {
     parameters?: Record<string, unknown>;
   };
   riskAssessment: RiskAssessment;
-  constitutionalCheck?: ConstitutionalCheckResult;
+  constitutionalCheck?: ConstitutionCheckResult;
   requestedAt: Date;
   expiresAt?: Date;
   status: 'pending' | 'approved' | 'rejected' | 'expired';
@@ -228,7 +228,7 @@ export class AutonomyManager {
     actionType: string,
     actionDescription: string,
     riskAssessment: RiskAssessment,
-    constitutionalCheck?: ConstitutionalCheckResult
+    constitutionalCheck?: ConstitutionCheckResult
   ): { decision: 'auto_approve' | 'require_approval' | 'auto_reject'; approvalId?: string } {
     this.metrics.totalActions++;
     
@@ -262,7 +262,7 @@ export class AutonomyManager {
     taskId: string,
     action: ApprovalRequest['action'],
     riskAssessment: RiskAssessment,
-    constitutionalCheck?: ConstitutionalCheckResult
+    constitutionalCheck?: ConstitutionCheckResult
   ): string {
     const id = `approval_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     

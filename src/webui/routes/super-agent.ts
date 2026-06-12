@@ -36,11 +36,11 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
       const agentMood = eqModule.getAgentMood();
       
       // Определяем активный уровень сознания на основе текущей задачи
-      const consciousnessLevel = deps.autonomousManager?.getCurrentConsciousnessLevel() ?? 'REACTIVE';
+      const consciousnessLevel = autonomyManager.getCurrentLevel();
       
       const data = {
         autonomy: {
-          currentLevel: autonomyManager.getLevel(),
+          currentLevel: autonomyManager.getCurrentLevel(),
           metrics: autonomyMetrics,
           pendingApprovals: autonomyManager.getPendingApprovals().length,
         },
@@ -77,7 +77,7 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
         return c.json({ success: false, error: "level is required" } as APIResponse, 400);
       }
       
-      const previousLevel = autonomyManager.getLevel();
+      const previousLevel = autonomyManager.getCurrentLevel();
       autonomyManager.setLevel(body.level, body.reason || "User requested via dashboard");
       
       const data = {
@@ -98,7 +98,7 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
   // GET /api/super-agent/autonomy — текущий уровень
   app.get("/autonomy", (c) => {
     try {
-      const currentLevel = autonomyManager.getLevel();
+      const currentLevel = autonomyManager.getCurrentLevel();
       const metrics = autonomyManager.getMetrics();
       const pendingApprovals = autonomyManager.getPendingApprovals();
       
@@ -505,8 +505,8 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
       const data = {
         constitution,
         autonomyLimits: {
-          currentLevel: autonomyManager.getLevel(),
-          ...AUTONOMY_LIMITS[autonomyManager.getLevel()],
+          currentLevel: autonomyManager.getCurrentLevel(),
+          ...AUTONOMY_LIMITS[autonomyManager.getCurrentLevel()],
         },
       };
       

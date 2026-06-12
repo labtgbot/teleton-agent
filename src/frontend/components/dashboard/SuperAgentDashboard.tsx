@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useAutonomyLevel } from '../../hooks/useAutonomyLevel';
-import { useConsciousnessState } from '../../hooks/useConsciousnessState';
-import { useEmotionalState } from '../../hooks/useEmotionalState';
-import AutonomyLevelWidget from './AutonomyLevelWidget';
-import ConsciousnessIndicator from './ConsciousnessIndicator';
-import EmotionFeed from './EmotionFeed';
-import SwarmVisualizer from './SwarmVisualizer';
-import MemoryManager from './MemoryManager';
-import DAOSecurityPanel from './DAOSecurityPanel';
+import { useAutonomyLevel } from '../../hooks/useAutonomyLevel.js';
+import { useConsciousnessState } from '../../hooks/useConsciousnessState.js';
+import { useEmotionalState } from '../../hooks/useEmotionalState.js';
+import AutonomyLevelWidget from './AutonomyLevelWidget.js';
+import ConsciousnessIndicator from './ConsciousnessIndicator.js';
+import EmotionFeed from './EmotionFeed.js';
+import SwarmVisualizer from './SwarmVisualizer.js';
+import MemoryManager from './MemoryManager.js';
+import DAOSecurityPanel from './DAOSecurityPanel.js';
 import './SuperAgentDashboard.css';
 
 interface SuperAgentDashboardProps {

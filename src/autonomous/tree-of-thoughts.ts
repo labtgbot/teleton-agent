@@ -8,8 +8,8 @@
  * - Backtracking and pruning
  */
 
-import { LLMProvider } from '../services/llm/provider';
-import { logger } from '../utils/logger';
+import { LLMProvider } from '../services/llm/provider.js';
+import { logger } from '../utils/logger.js';
 
 export interface ThoughtNode {
   id: string;
@@ -353,7 +353,7 @@ Score (just return a number between 0.0 and 1.0):`;
       let bestChildScore = -1;
       
       for (const branchContent of branches) {
-        const childNode = await this.createNode(branchContent, depth + 1, nodeId);
+        const childNode = await this.createNode(branchContent, depth + 1, currentNodeId);
         this.tree.nodes.set(childNode.id, childNode);
         
         if (childNode.score > bestChildScore) {

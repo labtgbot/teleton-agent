@@ -4,16 +4,16 @@
  * Фаза 4: Self-Improvement Loop
  */
 
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { 
   ExperienceEvent, 
   ExperienceType,
   Pattern, 
   PatternCategory,
   SelfImprovementConfig 
-} from '../../types/swarm/self-improvement';
-import { Logger } from '../../utils/logger';
-import { ExperienceGatherer } from './experience-gatherer';
+} from '../../types/swarm/self-improvement.js';
+import { Logger } from '../../utils/logger.js';
+import { ExperienceGatherer } from './experience-gatherer.js';
 
 interface PatternMiningConfig extends SelfImprovementConfig {
   minPatternFrequency: number;
@@ -301,7 +301,7 @@ export class PatternMiner {
     }
 
     return {
-      id: uuidv4(),
+      id: randomUUID(),
       category,
       name: this.generatePatternName(category, actions[0]),
       description: this.generatePatternDescription(cluster, category),

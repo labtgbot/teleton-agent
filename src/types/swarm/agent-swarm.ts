@@ -44,12 +44,15 @@ export enum ConsensusMethod {
 /**
  * Схема сообщения между агентами
  */
+const AgentRoleEnum = z.enum([AgentRole.ORCHESTRATOR, AgentRole.RESEARCHER, AgentRole.PLANNER, AgentRole.EXECUTOR, AgentRole.CRITIC, AgentRole.SECURITY, AgentRole.COMMUNICATOR, AgentRole.LEARNER]);
+const ConsensusMethodEnum = z.enum([ConsensusMethod.MAJORITY_VOTE, ConsensusMethod.WEIGHTED_VOTE, ConsensusMethod.UNANIMOUS, ConsensusMethod.DEBATE, ConsensusMethod.TIMEOUT]);
+
 export const AgentMessageSchema = z.object({
   id: z.string().uuid(),
-  from: z.nativeEnum(AgentRole),
-  to: z.union([z.nativeEnum(AgentRole), z.literal('all')]),
+  from: AgentRoleEnum,
+  to: z.union([AgentRoleEnum, z.literal('all')]),
   type: z.enum(['request', 'response', 'proposal', 'vote', 'result', 'error']),
-  content: z.record(z.unknown()),
+  content: z.record(z.string(), z.unknown()),
   timestamp: z.number(),
   priority: z.number().min(1).max(10).default(5),
   requiresResponse: z.boolean().default(false),
@@ -65,7 +68,7 @@ export type AgentMessage = z.infer<typeof AgentMessageSchema>;
  */
 export const AgentVoteSchema = z.object({
   agentId: z.string(),
-  agentRole: z.nativeEnum(AgentRole),
+  agentRole: z.enum([AgentRole.ORCHESTRATOR, AgentRole.RESEARCHER, AgentRole.PLANNER, AgentRole.EXECUTOR, AgentRole.CRITIC, AgentRole.SECURITY, AgentRole.COMMUNICATOR, AgentRole.LEARNER]),
   proposalId: z.string().uuid(),
   vote: z.enum(['yes', 'no', 'abstain']),
   confidence: z.number().min(0).max(1),
@@ -83,14 +86,14 @@ export const ProposalSchema = z.object({
   id: z.string().uuid(),
   title: z.string(),
   description: z.string(),
-  proposer: z.nativeEnum(AgentRole),
+  proposer: z.enum([AgentRole.ORCHESTRATOR, AgentRole.RESEARCHER, AgentRole.PLANNER, AgentRole.EXECUTOR, AgentRole.CRITIC, AgentRole.SECURITY, AgentRole.COMMUNICATOR, AgentRole.LEARNER]),
   type: z.enum(['action', 'strategy', 'plan', 'decision']),
-  content: z.record(z.unknown()),
+  content: z.record(z.string(), z.unknown()),
   status: z.enum(['draft', 'active', 'voting', 'accepted', 'rejected', 'expired']),
   votes: z.array(z.string().uuid()).default([]),
   createdAt: z.number(),
   expiresAt: z.number(),
-  requiredConsensus: z.nativeEnum(ConsensusMethod),
+  requiredConsensus: ConsensusMethodEnum,
   minVotes: z.number().int().positive(),
 });
 
@@ -100,7 +103,7 @@ export type Proposal = z.infer<typeof ProposalSchema>;
  * Конфигурация отдельного агента
  */
 export const AgentConfigSchema = z.object({
-  role: z.nativeEnum(AgentRole),
+  role: AgentRoleEnum,
   enabled: z.boolean().default(true),
   maxConcurrentTasks: z.number().int().positive().default(3),
   priority: z.number().min(1).max(10).default(5),

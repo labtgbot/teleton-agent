@@ -4,15 +4,15 @@
  * Фаза 4: Self-Improvement Loop
  */
 
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { 
   ExperienceEvent, 
   ExperienceType, 
   Pattern, 
   PatternCategory,
   SelfImprovementConfig 
-} from '../../types/swarm/self-improvement';
-import { Logger } from '../../utils/logger';
+} from '../../types/swarm/self-improvement.js';
+import { Logger } from '../../utils/logger.js';
 
 interface ExperienceGatheringConfig extends SelfImprovementConfig {
   storagePath: string;
@@ -66,7 +66,7 @@ export class ExperienceGatherer {
     const lessonsLearned = this.extractLessons(type, outcome, context);
 
     const experience: ExperienceEvent = {
-      id: uuidv4(),
+      id: randomUUID(),
       timestamp: Date.now(),
       type,
       action,

@@ -9,9 +9,9 @@
  * - Автоматическое участие в governance
  */
 
-import type { TonClient} from 'ton';
-import { Address, beginCell, toNano } from 'ton';
-import { ContractProvider } from 'ton-core';
+import type { TonClient} from '@ton/ton';
+import { Address, beginCell, toNano } from '@ton/ton';
+import { ContractProvider } from '@ton/core';
 
 export interface DaoProposal {
   id: string;

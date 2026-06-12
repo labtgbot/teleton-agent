@@ -51,12 +51,6 @@ export function createExecRunExecutor(
           error: `Command not permitted. Allowed prefixes: ${execConfig.command_allowlist.length > 0 ? execConfig.command_allowlist.join(", ") : "(none configured)"}`,
         };
       }
-    } else if (execConfig.mode === "yolo") {
-      // Disallow yolo mode for security reasons
-      return {
-        success: false,
-        error: "Exec mode 'yolo' is disabled due to security concerns. Use 'allowlist' mode with explicit commands."
-      };
     }
 
     const truncated = false;

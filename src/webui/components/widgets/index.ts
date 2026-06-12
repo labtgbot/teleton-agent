@@ -2,7 +2,7 @@
  * Экспорт всех виджетов Dashboard Супер-Агента
  */
 
-export { SuperAgentWidget } from './SuperAgentWidget';
-export { SwarmVisualizerWidget } from './SwarmVisualizerWidget';
-export { MemoryManagerWidget } from './MemoryManagerWidget';
-export { DaoSecurityWidget } from './DaoSecurityWidget';
+export { SuperAgentWidget } from './SuperAgentWidget.js';
+export { SwarmVisualizerWidget } from './SwarmVisualizerWidget.js';
+export { MemoryManagerWidget } from './MemoryManagerWidget.js';
+export { DaoSecurityWidget } from './DaoSecurityWidget.js';

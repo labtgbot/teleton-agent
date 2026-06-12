@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod';
-import { Logger } from '../utils/logger';
+import { Logger } from '../utils/logger.js';
 
 const logger = new Logger('WorldModel');
 

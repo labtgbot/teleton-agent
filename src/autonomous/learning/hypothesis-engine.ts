@@ -4,17 +4,17 @@
  * Фаза 4: Self-Improvement Loop
  */
 
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { 
   Pattern,
   ImprovementHypothesis,
   TestResult,
   SelfImprovementConfig,
   ExperienceType
-} from '../../types/swarm/self-improvement';
-import { Logger } from '../../utils/logger';
-import { PatternMiner } from './pattern-miner';
-import { ExperienceGatherer } from './experience-gatherer';
+} from '../../types/swarm/self-improvement.js';
+import { Logger } from '../../utils/logger.js';
+import { PatternMiner } from './pattern-miner.js';
+import { ExperienceGatherer } from './experience-gatherer.js';
 
 interface HypothesisTesterConfig extends SelfImprovementConfig {
   autoExecuteLowRisk: boolean;
@@ -113,7 +113,7 @@ export class ImprovementHypothesisEngine {
     }
 
     return {
-      id: uuidv4(),
+      id: randomUUID(),
       title: `Improve ${pattern.name}`,
       description: `Optimize ${pattern.category} pattern to increase success rate from ${(pattern.successRate * 100).toFixed(1)}% to 95%`,
       basedOnPatterns: [pattern.id],
@@ -150,7 +150,7 @@ export class ImprovementHypothesisEngine {
    */
   private createFixHypothesis(pattern: Pattern): ImprovementHypothesis | null {
     return {
-      id: uuidv4(),
+      id: randomUUID(),
       title: `Fix critical issue in ${pattern.name}`,
       description: `Address high failure rate (${((1 - pattern.successRate) * 100).toFixed(1)}%) in ${pattern.category}`,
       basedOnPatterns: [pattern.id],
@@ -304,7 +304,7 @@ export class ImprovementHypothesisEngine {
 
     const testResult: TestResult = {
       hypothesisId: hypothesis.id,
-      testId: uuidv4(),
+      testId: randomUUID(),
       startTime: Date.now() - 10000,
       endTime: Date.now(),
       method: 'simulation',
@@ -360,7 +360,7 @@ export class ImprovementHypothesisEngine {
 
     const testResult: TestResult = {
       hypothesisId: hypothesis.id,
-      testId: uuidv4(),
+      testId: randomUUID(),
       startTime: Date.now() - 5000,
       endTime: Date.now(),
       method: 'canary',
@@ -392,7 +392,7 @@ export class ImprovementHypothesisEngine {
 
     const testResult: TestResult = {
       hypothesisId: hypothesis.id,
-      testId: uuidv4(),
+      testId: randomUUID(),
       startTime: Date.now() - 5000,
       endTime: Date.now(),
       method: 'ab_test',
@@ -424,7 +424,7 @@ export class ImprovementHypothesisEngine {
 
     const testResult: TestResult = {
       hypothesisId: hypothesis.id,
-      testId: uuidv4(),
+      testId: randomUUID(),
       startTime: Date.now() - 5000,
       endTime: Date.now(),
       method: 'shadow',

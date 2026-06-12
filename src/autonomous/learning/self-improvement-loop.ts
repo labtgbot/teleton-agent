@@ -4,11 +4,11 @@
  * Фаза 4: Self-Improvement Loop
  */
 
-import { Logger } from '../../utils/logger';
-import { ExperienceGatherer } from './experience-gatherer';
-import { PatternMiner } from './pattern-miner';
-import { ImprovementHypothesisEngine } from './hypothesis-engine';
-import { SelfImprovementConfig, SelfImprovementMetrics, ExperienceType } from '../../types/swarm/self-improvement';
+import { Logger } from '../../utils/logger.js';
+import { ExperienceGatherer } from './experience-gatherer.js';
+import { PatternMiner } from './pattern-miner.js';
+import { ImprovementHypothesisEngine } from './hypothesis-engine.js';
+import { SelfImprovementConfig, SelfImprovementMetrics, ExperienceType } from '../../types/swarm/self-improvement.js';
 
 interface SelfImprovementLoopConfig extends SelfImprovementConfig {
   autoRunInterval: number; // Интервал автоматического запуска (мс)

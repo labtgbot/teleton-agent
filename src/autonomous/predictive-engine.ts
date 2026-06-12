@@ -9,8 +9,8 @@
  */
 
 import { z } from 'zod';
-import type { AgentMemory } from '../memory/agent-memory';
-import { createLogger } from '../utils/logger';
+import type { AgentMemory } from '../memory/agent-memory.js';
+import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('PredictiveEngine');
 

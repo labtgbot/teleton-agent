@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod';
-import { logger } from '../../utils/logger';
+import { logger } from '../../utils/logger.js';
 
 export interface EpisodicEvent {
   id: string;
@@ -233,12 +233,14 @@ export class EpisodicMemory {
     tags.push(type.toLowerCase());
     
     // Keyword-based tags (simplified)
-    const keywords = {
+    const keywords: Record<EventType, string[]> = {
+      [EventType.ACTION]: ['action', 'execute', 'perform', 'do'],
+      [EventType.DECISION]: ['decide', 'choose', 'select', 'option'],
       [EventType.SUCCESS]: ['success', 'completed', 'achieved', 'won'],
       [EventType.FAILURE]: ['fail', 'error', 'mistake', 'lost'],
-      [EventType.DECISION]: ['decide', 'choose', 'select', 'option'],
       [EventType.INTERACTION]: ['user', 'message', 'conversation', 'response'],
       [EventType.LEARNING]: ['learn', 'understand', 'realize', 'insight'],
+      [EventType.ANOMALY]: ['anomaly', 'unusual', 'unexpected', 'abnormal'],
     };
     
     const typeKeywords = keywords[type] || [];

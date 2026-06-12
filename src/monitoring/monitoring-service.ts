@@ -6,7 +6,15 @@
  */
 
 import { EventEmitter } from "events";
-import type { SwarmAgent, ConsensusDecision } from "../autonomous/swarm/coordinator.js";
+// Local types for swarm monitoring (coordinator doesn't export these)
+interface SwarmAgent {
+  role: string;
+  status: string;
+}
+interface ConsensusDecision {
+  consensusReached: boolean;
+  duration?: number;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -83,6 +91,7 @@ export interface AlertEvent {
   metricValue: number;
   threshold: number;
   triggeredAt: number;
+  triggerCount?: number;
   resolved?: boolean;
   resolvedAt?: number;
 }
@@ -599,8 +608,8 @@ export class MonitoringService extends EventEmitter {
       memoryHeapUsed: memUsage.heapUsed,
       memoryHeapTotal: memUsage.heapTotal,
       eventLoopLag: 0,
-      activeHandles: process._getActiveHandles().length,
-      activeRequests: process._getActiveRequests().length,
+      activeHandles: (process as unknown as { _getActiveHandles?: () => unknown[] })._getActiveHandles?.().length ?? 0,
+      activeRequests: (process as unknown as { _getActiveRequests?: () => unknown[] })._getActiveRequests?.().length ?? 0,
       uptime,
     };
   }
@@ -613,7 +622,7 @@ export class MonitoringService extends EventEmitter {
     
     const agentStatuses: Record<string, "idle" | "working" | "error"> = {};
     for (const agent of agents) {
-      agentStatuses[agent.role] = agent.status;
+      agentStatuses[agent.role] = agent.status as "idle" | "working" | "error";
     }
     
     this.swarmMetrics = {

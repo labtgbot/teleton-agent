@@ -4,7 +4,7 @@
  * Фаза 4: Agent Swarm Architecture
  */
 
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import {
   AgentRole,
   AgentStatus,
@@ -17,8 +17,8 @@ import {
   SwarmConfig,
   SwarmMetrics,
   AgentTask,
-} from '../../types/swarm/agent-swarm';
-import { Logger } from '../../utils/logger';
+} from '../../types/swarm/agent-swarm.js';
+import { Logger } from '../../utils/logger.js';
 
 interface AgentInstance {
   id: string;
@@ -61,14 +61,14 @@ export class SwarmCoordinator {
    */
   private getDefaultAgentConfigs(): AgentConfig[] {
     return [
-      { role: AgentRole.ORCHESTRATOR, priority: 10, maxConcurrentTasks: 5 },
-      { role: AgentRole.RESEARCHER, priority: 7, maxConcurrentTasks: 3 },
-      { role: AgentRole.PLANNER, priority: 8, maxConcurrentTasks: 2 },
-      { role: AgentRole.EXECUTOR, priority: 6, maxConcurrentTasks: 5 },
-      { role: AgentRole.CRITIC, priority: 9, maxConcurrentTasks: 3 },
-      { role: AgentRole.SECURITY, priority: 10, maxConcurrentTasks: 10 },
-      { role: AgentRole.COMMUNICATOR, priority: 7, maxConcurrentTasks: 5 },
-      { role: AgentRole.LEARNER, priority: 5, maxConcurrentTasks: 2 },
+      { role: AgentRole.ORCHESTRATOR, enabled: true, priority: 10, maxConcurrentTasks: 5, temperature: 0.7 },
+      { role: AgentRole.RESEARCHER, enabled: true, priority: 7, maxConcurrentTasks: 3, temperature: 0.7 },
+      { role: AgentRole.PLANNER, enabled: true, priority: 8, maxConcurrentTasks: 2, temperature: 0.7 },
+      { role: AgentRole.EXECUTOR, enabled: true, priority: 6, maxConcurrentTasks: 5, temperature: 0.7 },
+      { role: AgentRole.CRITIC, enabled: true, priority: 9, maxConcurrentTasks: 3, temperature: 0.7 },
+      { role: AgentRole.SECURITY, enabled: true, priority: 10, maxConcurrentTasks: 10, temperature: 0.7 },
+      { role: AgentRole.COMMUNICATOR, enabled: true, priority: 7, maxConcurrentTasks: 5, temperature: 0.7 },
+      { role: AgentRole.LEARNER, enabled: true, priority: 5, maxConcurrentTasks: 2, temperature: 0.7 },
     ];
   }
 
@@ -80,7 +80,7 @@ export class SwarmCoordinator {
       if (!agentConfig.enabled) return;
 
       const agent: AgentInstance = {
-        id: uuidv4(),
+        id: randomUUID(),
         role: agentConfig.role,
         config: agentConfig,
         status: AgentStatus.IDLE,
@@ -109,7 +109,7 @@ export class SwarmCoordinator {
     }
   ): AgentMessage {
     const message: AgentMessage = {
-      id: uuidv4(),
+      id: randomUUID(),
       from,
       to,
       type,
@@ -118,7 +118,7 @@ export class SwarmCoordinator {
       priority: options?.priority || 5,
       requiresResponse: options?.requiresResponse || false,
       timeout: options?.timeout,
-      threadId: uuidv4(),
+      threadId: randomUUID(),
     };
 
     // Ограничение размера очереди
@@ -149,7 +149,7 @@ export class SwarmCoordinator {
     consensusMethod: ConsensusMethod = ConsensusMethod.MAJORITY_VOTE
   ): Proposal {
     const proposal: Proposal = {
-      id: uuidv4(),
+      id: randomUUID(),
       title,
       description,
       proposer,
@@ -448,7 +448,7 @@ export class SwarmCoordinator {
     }
 
     const task: AgentTask = {
-      id: uuidv4(),
+      id: randomUUID(),
       assignedTo: role,
       description,
       input,

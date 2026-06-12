@@ -9,9 +9,9 @@
  */
 
 import { z } from 'zod';
-import type { LLMProvider } from '../services/llm/provider';
-import type { MemoryService } from '../memory/memory-service';
-import { logger } from '../utils/logger';
+import type { LLMProvider } from '../services/llm/provider.js';
+import type { MemoryService } from '../memory/memory-service.js';
+import { logger } from '../utils/logger.js';
 
 export enum ConsciousnessLevel {
   REACTIVE = 'REACTIVE',
