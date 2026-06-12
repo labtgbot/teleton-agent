@@ -9,8 +9,8 @@
  */
 
 import { z } from 'zod';
-import { LLMProvider } from '../services/llm/provider';
-import { MemoryService } from '../memory/memory-service';
+import type { LLMProvider } from '../services/llm/provider';
+import type { MemoryService } from '../memory/memory-service';
 import { logger } from '../utils/logger';
 
 export enum ConsciousnessLevel {

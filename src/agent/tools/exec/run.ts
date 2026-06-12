@@ -44,8 +44,15 @@ export function createExecRunExecutor(
           error: `Command not permitted. Allowed prefixes: ${execConfig.command_allowlist.length > 0 ? execConfig.command_allowlist.join(", ") : "(none configured)"}`,
         };
       }
+    } else if (execConfig.mode === "yolo") {
+      // Disallow yolo mode for security reasons
+      return {
+        success: false,
+        error: "Exec mode 'yolo' is disabled due to security concerns. Use 'allowlist' mode with explicit commands."
+      };
     }
 
+    const truncated = false;
     let auditId: number | undefined;
     if (execConfig.audit.log_commands) {
       auditId = insertAuditEntry(db, {
@@ -58,40 +65,53 @@ export function createExecRunExecutor(
       });
     }
 
-    const result = await runCommand(command, {
-      timeout: timeout * 1000,
-      maxOutput: max_output,
-    });
-
-    const status = result.timedOut ? "timeout" : result.exitCode === 0 ? "success" : "failed";
-
-    if (auditId !== undefined) {
-      updateAuditEntry(db, auditId, {
-        status,
-        exitCode: result.exitCode ?? undefined,
-        signal: result.signal ?? undefined,
-        duration: result.duration,
-        stdout: result.stdout,
-        stderr: result.stderr,
-        truncated: result.truncated,
+    try {
+      const result = await runCommand(command, {
+        timeout: timeout * 1000,
+        maxOutput: max_output,
       });
-    }
 
-    return {
-      success: result.exitCode === 0 && !result.timedOut,
-      data: {
-        stdout: result.stdout,
-        stderr: result.stderr,
-        exitCode: result.exitCode,
-        duration: result.duration,
-        truncated: result.truncated,
-        timedOut: result.timedOut,
-      },
-      ...(result.timedOut
-        ? { error: `Command timed out after ${timeout}s` }
-        : result.exitCode !== 0
-          ? { error: `Command exited with code ${result.exitCode}` }
-          : {}),
-    };
+      const status = result.timedOut ? "timeout" : result.exitCode === 0 ? "success" : "failed";
+
+      if (auditId !== undefined) {
+        updateAuditEntry(db, auditId, {
+          status,
+          exitCode: result.exitCode ?? undefined,
+          signal: result.signal ?? undefined,
+          duration: result.duration,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          truncated: result.truncated,
+        });
+      }
+
+      return {
+        success: result.exitCode === 0 && !result.timedOut,
+        data: {
+          stdout: result.stdout,
+          stderr: result.stderr,
+          exitCode: result.exitCode,
+          duration: result.duration,
+          truncated: result.truncated,
+          timedOut: result.timedOut,
+        },
+        ...(result.timedOut
+          ? { error: `Command timed out after ${timeout}s` }
+          : result.exitCode !== 0
+            ? { error: `Command exited with code ${result.exitCode}` }
+            : {}),
+      };
+    } catch (err) {
+      if (auditId !== undefined) {
+        updateAuditEntry(db, auditId, {
+          status: "failed",
+          stderr: err instanceof Error ? err.message : String(err),
+        });
+      }
+      return {
+        success: false,
+        error: `Execution failed: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
   };
 }
