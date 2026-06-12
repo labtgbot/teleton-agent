@@ -8,7 +8,6 @@ on:
 
 env:
   NODE_VERSION: '20'
-  PNPM_VERSION: '9'
 
 jobs:
   # ============================================
@@ -26,19 +25,14 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Run ESLint
-        run: pnpm lint
+        run: npm run lint
 
       - name: Run TypeScript Check
-        run: pnpm typecheck
+        run: npm run typecheck
 
   # ============================================
   # 2. Unit Tests
@@ -70,16 +64,11 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Run Unit Tests with Coverage
-        run: pnpm test:unit --coverage
+        run: npm run test:unit -- --coverage
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/teleton_test
           REDIS_URL: redis://localhost:6379
@@ -132,16 +121,11 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Build project
-        run: pnpm build
+        run: npm run build
 
       - name: Wait for PostgreSQL to be ready
         run: |
@@ -170,7 +154,7 @@ jobs:
           exit 1
 
       - name: Run Integration Tests
-        run: pnpm test:integration
+        run: npm run test:integration
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/teleton_test
           REDIS_URL: redis://localhost:6379
@@ -207,22 +191,17 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Install Playwright Browsers
-        run: pnpm exec playwright install --with-deps
+        run: npx playwright install --with-deps
 
       - name: Build project
-        run: pnpm build
+        run: npm run build
 
       - name: Start server in background
-        run: pnpm start &
+        run: npm start &
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/teleton_test
           REDIS_URL: redis://localhost:6379
@@ -242,7 +221,7 @@ jobs:
           exit 1
 
       - name: Run E2E Tests
-        run: pnpm test:e2e
+        run: npm run test:e2e
         env:
           BASE_URL: http://localhost:3000
 
@@ -269,16 +248,11 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Run npm audit
-        run: pnpm audit --audit-level=high
+        run: npm audit --audit-level=high
 
       - name: Run Snyk Security Scan
         uses: snyk/actions/node@master
