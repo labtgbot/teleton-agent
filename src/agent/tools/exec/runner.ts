@@ -63,7 +63,7 @@ export async function validateCwd(cwd: string): Promise<void> {
 export async function runCommand(
   command: string,
   options: RunOptions,
-  sandboxCwd?: string,
+  sandboxCwd?: string
 ): Promise<ExecResult> {
   if (activeCount >= MAX_CONCURRENT) {
     throw new Error(`Max concurrent processes (${MAX_CONCURRENT}) reached`);

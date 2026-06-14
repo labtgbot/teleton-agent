@@ -12,8 +12,11 @@ export interface LLMProvider {
 
 /** Stub provider that returns empty responses */
 export class StubLLMProvider implements LLMProvider {
-  async generate(_prompt: string, _options?: { temperature?: number; maxTokens?: number }): Promise<string> {
-    return '';
+  async generate(
+    _prompt: string,
+    _options?: { temperature?: number; maxTokens?: number }
+  ): Promise<string> {
+    return "";
   }
 }
 

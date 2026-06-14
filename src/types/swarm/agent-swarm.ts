@@ -3,55 +3,70 @@
  * Фаза 4: Agent Swarm Architecture
  */
 
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * Роли специализированных агентов
  */
 export enum AgentRole {
-  ORCHESTRATOR = 'orchestrator',      // Главный координатор
-  RESEARCHER = 'researcher',          // Поиск информации
-  PLANNER = 'planner',                // Стратегическое планирование
-  EXECUTOR = 'executor',              // Выполнение задач
-  CRITIC = 'critic',                  // Критика и валидация
-  SECURITY = 'security',              // Проверка безопасности
-  COMMUNICATOR = 'communicator',      // Коммуникация с пользователем
-  LEARNER = 'learner',                // Анализ и обучение
+  ORCHESTRATOR = "orchestrator", // Главный координатор
+  RESEARCHER = "researcher", // Поиск информации
+  PLANNER = "planner", // Стратегическое планирование
+  EXECUTOR = "executor", // Выполнение задач
+  CRITIC = "critic", // Критика и валидация
+  SECURITY = "security", // Проверка безопасности
+  COMMUNICATOR = "communicator", // Коммуникация с пользователем
+  LEARNER = "learner", // Анализ и обучение
 }
 
 /**
  * Статус агента в swarm
  */
 export enum AgentStatus {
-  IDLE = 'idle',
-  BUSY = 'busy',
-  WAITING = 'waiting',
-  ERROR = 'error',
-  OFFLINE = 'offline',
+  IDLE = "idle",
+  BUSY = "busy",
+  WAITING = "waiting",
+  ERROR = "error",
+  OFFLINE = "offline",
 }
 
 /**
  * Методы консенсуса
  */
 export enum ConsensusMethod {
-  MAJORITY_VOTE = 'majority_vote',
-  WEIGHTED_VOTE = 'weighted_vote',
-  UNANIMOUS = 'unanimous',
-  DEBATE = 'debate',
-  TIMEOUT = 'timeout',
+  MAJORITY_VOTE = "majority_vote",
+  WEIGHTED_VOTE = "weighted_vote",
+  UNANIMOUS = "unanimous",
+  DEBATE = "debate",
+  TIMEOUT = "timeout",
 }
 
 /**
  * Схема сообщения между агентами
  */
-const AgentRoleEnum = z.enum([AgentRole.ORCHESTRATOR, AgentRole.RESEARCHER, AgentRole.PLANNER, AgentRole.EXECUTOR, AgentRole.CRITIC, AgentRole.SECURITY, AgentRole.COMMUNICATOR, AgentRole.LEARNER]);
-const ConsensusMethodEnum = z.enum([ConsensusMethod.MAJORITY_VOTE, ConsensusMethod.WEIGHTED_VOTE, ConsensusMethod.UNANIMOUS, ConsensusMethod.DEBATE, ConsensusMethod.TIMEOUT]);
+const AgentRoleEnum = z.enum([
+  AgentRole.ORCHESTRATOR,
+  AgentRole.RESEARCHER,
+  AgentRole.PLANNER,
+  AgentRole.EXECUTOR,
+  AgentRole.CRITIC,
+  AgentRole.SECURITY,
+  AgentRole.COMMUNICATOR,
+  AgentRole.LEARNER,
+]);
+const ConsensusMethodEnum = z.enum([
+  ConsensusMethod.MAJORITY_VOTE,
+  ConsensusMethod.WEIGHTED_VOTE,
+  ConsensusMethod.UNANIMOUS,
+  ConsensusMethod.DEBATE,
+  ConsensusMethod.TIMEOUT,
+]);
 
 export const AgentMessageSchema = z.object({
   id: z.string().uuid(),
   from: AgentRoleEnum,
-  to: z.union([AgentRoleEnum, z.literal('all')]),
-  type: z.enum(['request', 'response', 'proposal', 'vote', 'result', 'error']),
+  to: z.union([AgentRoleEnum, z.literal("all")]),
+  type: z.enum(["request", "response", "proposal", "vote", "result", "error"]),
   content: z.record(z.string(), z.unknown()),
   timestamp: z.number(),
   priority: z.number().min(1).max(10).default(5),
@@ -68,9 +83,18 @@ export type AgentMessage = z.infer<typeof AgentMessageSchema>;
  */
 export const AgentVoteSchema = z.object({
   agentId: z.string(),
-  agentRole: z.enum([AgentRole.ORCHESTRATOR, AgentRole.RESEARCHER, AgentRole.PLANNER, AgentRole.EXECUTOR, AgentRole.CRITIC, AgentRole.SECURITY, AgentRole.COMMUNICATOR, AgentRole.LEARNER]),
+  agentRole: z.enum([
+    AgentRole.ORCHESTRATOR,
+    AgentRole.RESEARCHER,
+    AgentRole.PLANNER,
+    AgentRole.EXECUTOR,
+    AgentRole.CRITIC,
+    AgentRole.SECURITY,
+    AgentRole.COMMUNICATOR,
+    AgentRole.LEARNER,
+  ]),
   proposalId: z.string().uuid(),
-  vote: z.enum(['yes', 'no', 'abstain']),
+  vote: z.enum(["yes", "no", "abstain"]),
   confidence: z.number().min(0).max(1),
   rationale: z.string().optional(),
   timestamp: z.number(),
@@ -86,10 +110,19 @@ export const ProposalSchema = z.object({
   id: z.string().uuid(),
   title: z.string(),
   description: z.string(),
-  proposer: z.enum([AgentRole.ORCHESTRATOR, AgentRole.RESEARCHER, AgentRole.PLANNER, AgentRole.EXECUTOR, AgentRole.CRITIC, AgentRole.SECURITY, AgentRole.COMMUNICATOR, AgentRole.LEARNER]),
-  type: z.enum(['action', 'strategy', 'plan', 'decision']),
+  proposer: z.enum([
+    AgentRole.ORCHESTRATOR,
+    AgentRole.RESEARCHER,
+    AgentRole.PLANNER,
+    AgentRole.EXECUTOR,
+    AgentRole.CRITIC,
+    AgentRole.SECURITY,
+    AgentRole.COMMUNICATOR,
+    AgentRole.LEARNER,
+  ]),
+  type: z.enum(["action", "strategy", "plan", "decision"]),
   content: z.record(z.string(), z.unknown()),
-  status: z.enum(['draft', 'active', 'voting', 'accepted', 'rejected', 'expired']),
+  status: z.enum(["draft", "active", "voting", "accepted", "rejected", "expired"]),
   votes: z.array(z.string().uuid()).default([]),
   createdAt: z.number(),
   expiresAt: z.number(),
@@ -129,7 +162,7 @@ export const SwarmConfigSchema = z.object({
   quorumPercentage: z.number().min(50).max(100).default(60),
   messageQueueSize: z.number().int().positive().default(1000),
   enableLogging: z.boolean().default(true),
-  logLevel: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  logLevel: z.enum(["debug", "info", "warn", "error"]).default("info"),
 });
 
 export type SwarmConfig = z.infer<typeof SwarmConfigSchema>;
@@ -142,7 +175,7 @@ export interface ConsensusResult {
   method: ConsensusMethod;
   achieved: boolean;
   votes: AgentVote[];
-  result: 'accepted' | 'rejected' | 'timeout';
+  result: "accepted" | "rejected" | "timeout";
   summary: string;
   dissentingOpinions?: Array<{
     agentRole: AgentRole;
@@ -163,11 +196,14 @@ export interface SwarmMetrics {
   averageConsensusTime: number;
   tasksCompleted: number;
   successRate: number;
-  byRole: Record<AgentRole, {
-    tasksCompleted: number;
-    successRate: number;
-    averageResponseTime: number;
-  }>;
+  byRole: Record<
+    AgentRole,
+    {
+      tasksCompleted: number;
+      successRate: number;
+      averageResponseTime: number;
+    }
+  >;
 }
 
 /**
@@ -179,7 +215,7 @@ export interface AgentTask {
   description: string;
   input: Record<string, unknown>;
   output?: Record<string, unknown>;
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  status: "pending" | "in_progress" | "completed" | "failed";
   priority: number;
   createdAt: number;
   startedAt?: number;

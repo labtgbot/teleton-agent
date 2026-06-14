@@ -15,7 +15,7 @@ export interface MemoryEvent {
 
 export interface AgentMemory {
   id: string;
-  type: 'episodic' | 'semantic' | 'procedural';
+  type: "episodic" | "semantic" | "procedural";
   content: string;
   embedding?: number[];
   metadata?: Record<string, unknown>;

@@ -5,11 +5,11 @@
  */
 
 export type AutonomyLevel =
-  | 'LEVEL_0_MANUAL'
-  | 'LEVEL_1_SUPERVISED'
-  | 'LEVEL_2_SEMI_AUTONOMOUS'
-  | 'LEVEL_3_FULLY_AUTONOMOUS'
-  | 'LEVEL_4_GOD_MODE';
+  | "LEVEL_0_MANUAL"
+  | "LEVEL_1_SUPERVISED"
+  | "LEVEL_2_SEMI_AUTONOMOUS"
+  | "LEVEL_3_FULLY_AUTONOMOUS"
+  | "LEVEL_4_GOD_MODE";
 
 export interface AutonomyLevelConfig {
   level: AutonomyLevel;

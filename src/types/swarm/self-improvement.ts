@@ -3,37 +3,51 @@
  * Фаза 4: Self-Improvement Loop
  */
 
-import { z } from 'zod';
+import { z } from "zod";
 
 /**
  * Типы событий опыта
  */
 export enum ExperienceType {
-  SUCCESS = 'success',
-  FAILURE = 'failure',
-  PARTIAL_SUCCESS = 'partial_success',
-  NEAR_MISS = 'near_miss',
-  BREAKTHROUGH = 'breakthrough',
+  SUCCESS = "success",
+  FAILURE = "failure",
+  PARTIAL_SUCCESS = "partial_success",
+  NEAR_MISS = "near_miss",
+  BREAKTHROUGH = "breakthrough",
 }
 
 /**
  * Категории паттернов
  */
 export enum PatternCategory {
-  DECISION_MAKING = 'decision_making',
-  TOOL_USAGE = 'tool_usage',
-  COMMUNICATION = 'communication',
-  PROBLEM_SOLVING = 'problem_solving',
-  RESOURCE_MANAGEMENT = 'resource_management',
-  ERROR_HANDLING = 'error_handling',
-  OPTIMIZATION = 'optimization',
+  DECISION_MAKING = "decision_making",
+  TOOL_USAGE = "tool_usage",
+  COMMUNICATION = "communication",
+  PROBLEM_SOLVING = "problem_solving",
+  RESOURCE_MANAGEMENT = "resource_management",
+  ERROR_HANDLING = "error_handling",
+  OPTIMIZATION = "optimization",
 }
 
 /**
  * Схема отдельного события опыта
  */
-const ExperienceTypeEnum = z.enum([ExperienceType.SUCCESS, ExperienceType.FAILURE, ExperienceType.PARTIAL_SUCCESS, ExperienceType.NEAR_MISS, ExperienceType.BREAKTHROUGH]);
-const PatternCategoryEnum = z.enum([PatternCategory.DECISION_MAKING, PatternCategory.TOOL_USAGE, PatternCategory.COMMUNICATION, PatternCategory.PROBLEM_SOLVING, PatternCategory.RESOURCE_MANAGEMENT, PatternCategory.ERROR_HANDLING, PatternCategory.OPTIMIZATION]);
+const ExperienceTypeEnum = z.enum([
+  ExperienceType.SUCCESS,
+  ExperienceType.FAILURE,
+  ExperienceType.PARTIAL_SUCCESS,
+  ExperienceType.NEAR_MISS,
+  ExperienceType.BREAKTHROUGH,
+]);
+const PatternCategoryEnum = z.enum([
+  PatternCategory.DECISION_MAKING,
+  PatternCategory.TOOL_USAGE,
+  PatternCategory.COMMUNICATION,
+  PatternCategory.PROBLEM_SOLVING,
+  PatternCategory.RESOURCE_MANAGEMENT,
+  PatternCategory.ERROR_HANDLING,
+  PatternCategory.OPTIMIZATION,
+]);
 
 export const ExperienceEventSchema = z.object({
   id: z.string().uuid(),
@@ -43,13 +57,15 @@ export const ExperienceEventSchema = z.object({
   action: z.string(),
   context: z.record(z.string(), z.unknown()),
   outcome: z.record(z.string(), z.unknown()),
-  metrics: z.object({
-    duration: z.number().optional(),
-    tokensUsed: z.number().optional(),
-    cost: z.number().optional(),
-    successRate: z.number().min(0).max(1).optional(),
-    userSatisfaction: z.number().min(0).max(10).optional(),
-  }).optional(),
+  metrics: z
+    .object({
+      duration: z.number().optional(),
+      tokensUsed: z.number().optional(),
+      cost: z.number().optional(),
+      successRate: z.number().min(0).max(1).optional(),
+      userSatisfaction: z.number().min(0).max(10).optional(),
+    })
+    .optional(),
   emotionalWeight: z.number().min(-1).max(1).optional(),
   tags: z.array(z.string()).optional(),
   lessonsLearned: z.array(z.string()).optional(),
@@ -75,7 +91,7 @@ export const PatternSchema = z.object({
   createdAt: z.number(),
   lastUpdated: z.number(),
   isValidated: z.boolean().default(false),
-  riskLevel: z.enum(['low', 'medium', 'high']).default('medium'),
+  riskLevel: z.enum(["low", "medium", "high"]).default("medium"),
 });
 
 export type Pattern = z.infer<typeof PatternSchema>;
@@ -93,18 +109,20 @@ export const ImprovementHypothesisSchema = z.object({
     improvement: z.number().min(0),
     confidence: z.number().min(0).max(1),
   }),
-  proposedChanges: z.array(z.object({
-    component: z.string(),
-    change: z.string(),
-    rationale: z.string(),
-  })),
+  proposedChanges: z.array(
+    z.object({
+      component: z.string(),
+      change: z.string(),
+      rationale: z.string(),
+    })
+  ),
   testPlan: z.object({
-    method: z.enum(['simulation', 'canary', 'ab_test', 'shadow']),
+    method: z.enum(["simulation", "canary", "ab_test", "shadow"]),
     duration: z.number().positive(),
     successCriteria: z.array(z.string()),
     rollbackPlan: z.string(),
   }),
-  status: z.enum(['draft', 'pending_review', 'testing', 'validated', 'rejected', 'integrated']),
+  status: z.enum(["draft", "pending_review", "testing", "validated", "rejected", "integrated"]),
   priority: z.number().min(1).max(10),
   createdAt: z.number(),
   createdBy: z.string().optional(),
@@ -120,7 +138,7 @@ export const TestResultSchema = z.object({
   testId: z.string().uuid(),
   startTime: z.number(),
   endTime: z.number(),
-  method: z.enum(['simulation', 'canary', 'ab_test', 'shadow']),
+  method: z.enum(["simulation", "canary", "ab_test", "shadow"]),
   metrics: z.record(z.string(), z.number()),
   success: z.boolean(),
   findings: z.array(z.string()),
