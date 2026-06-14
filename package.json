@@ -120,6 +120,9 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "overrides": {
+    "qs": "6.15.2"
+  },
   "lint-staged": {
     "src/**/*.ts": [
       "eslint --fix",
