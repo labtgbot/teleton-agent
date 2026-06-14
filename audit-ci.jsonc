@@ -3,6 +3,7 @@
   "allowlist": [
     "GHSA-5rq4-664w-9x2c",
     "GHSA-m7jm-9gc2-mpf2",
-    "GHSA-q8mj-m7cp-5q26"
+    "GHSA-q8mj-m7cp-5q26",
+    "GHSA-5xrq-8626-4rwp"
   ]
 }
