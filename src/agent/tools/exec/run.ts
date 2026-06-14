@@ -40,7 +40,8 @@ export function createExecRunExecutor(
     if (execConfig.mode === "yolo") {
       return {
         success: false,
-        error: "YOLO exec mode is disabled for security. Use 'allowlist' mode with explicit command_allowlist instead. See issue #10 (CWE-78).",
+        error:
+          "YOLO exec mode is disabled for security. Use 'allowlist' mode with explicit command_allowlist instead. See issue #10 (CWE-78).",
       };
     }
 
@@ -53,7 +54,6 @@ export function createExecRunExecutor(
       }
     }
 
-    const truncated = false;
     let auditId: number | undefined;
     if (execConfig.audit.log_commands) {
       auditId = insertAuditEntry(db, {

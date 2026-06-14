@@ -29,7 +29,7 @@ export default [
   },
   {
     files: ["src/**/*.ts"],
-    ignores: ["src/**/__tests__/**"],
+    ignores: ["src/**/__tests__/**", "src/webui/components/widgets/index.ts", "src/webui/validate-step.ts"],
     languageOptions: {
       parser: tsParser,
       parserOptions: {

@@ -1,6 +1,6 @@
 /**
  * Enhanced Monitoring & Observability Module
- * 
+ *
  * Provides Prometheus-compatible metrics, OpenTelemetry tracing,
  * and intelligent alerting for the Teleton Agent swarm.
  */
@@ -142,7 +142,7 @@ export interface SwarmMetrics {
 export interface AlertChannel {
   id: string;
   type: "telegram" | "webhook" | "email" | "log";
-  config: Record<string, any>;
+  config: Record<string, unknown>;
   enabled: boolean;
 }
 
@@ -156,7 +156,7 @@ export class MonitoringService extends EventEmitter {
   private traces: Map<string, TraceSpan[]>;
   private performanceHistory: MetricPoint[];
   private swarmMetrics: SwarmMetrics;
-  
+
   constructor() {
     super();
     this.registry = {
@@ -178,13 +178,13 @@ export class MonitoringService extends EventEmitter {
       messagesExchanged: 0,
       agentStatuses: {},
     };
-    
+
     this.initializeDefaultMetrics();
     this.startPerformanceMonitoring();
   }
-  
+
   // ── Metric Creation ─────────────────────────────────────────────────
-  
+
   createCounter(name: string, help: string, labels?: Record<string, string>): CounterMetric {
     const metric: CounterMetric = {
       name,
@@ -196,7 +196,7 @@ export class MonitoringService extends EventEmitter {
     this.registry.counters.set(name, metric);
     return metric;
   }
-  
+
   createGauge(name: string, help: string, labels?: Record<string, string>): GaugeMetric {
     const metric: GaugeMetric = {
       name,
@@ -208,7 +208,7 @@ export class MonitoringService extends EventEmitter {
     this.registry.gauges.set(name, metric);
     return metric;
   }
-  
+
   createHistogram(
     name: string,
     help: string,
@@ -227,7 +227,7 @@ export class MonitoringService extends EventEmitter {
     this.registry.histograms.set(name, metric);
     return metric;
   }
-  
+
   createSummary(
     name: string,
     help: string,
@@ -246,9 +246,9 @@ export class MonitoringService extends EventEmitter {
     this.registry.summaries.set(name, metric);
     return metric;
   }
-  
+
   // ── Metric Operations ───────────────────────────────────────────────
-  
+
   inc(name: string, value: number = 1, labels?: Record<string, string>): void {
     const counter = this.registry.counters.get(name);
     if (counter) {
@@ -257,7 +257,7 @@ export class MonitoringService extends EventEmitter {
       }
     }
   }
-  
+
   set(name: string, value: number, labels?: Record<string, string>): void {
     const gauge = this.registry.gauges.get(name);
     if (gauge) {
@@ -266,14 +266,14 @@ export class MonitoringService extends EventEmitter {
       }
     }
   }
-  
+
   observe(name: string, value: number, labels?: Record<string, string>): void {
     const histogram = this.registry.histograms.get(name);
     if (histogram) {
       if (this.labelsMatch(histogram.labels, labels)) {
         histogram.count++;
         histogram.sum += value;
-        
+
         for (const [bucket, count] of histogram.buckets) {
           if (value <= bucket) {
             histogram.buckets.set(bucket, count + 1);
@@ -281,7 +281,7 @@ export class MonitoringService extends EventEmitter {
         }
       }
     }
-    
+
     const summary = this.registry.summaries.get(name);
     if (summary) {
       if (this.labelsMatch(summary.labels, labels)) {
@@ -291,33 +291,33 @@ export class MonitoringService extends EventEmitter {
       }
     }
   }
-  
+
   private labelsMatch(
     metricLabels?: Record<string, string>,
     providedLabels?: Record<string, string>
   ): boolean {
     if (!metricLabels && !providedLabels) return true;
     if (!metricLabels || !providedLabels) return false;
-    
+
     for (const key in metricLabels) {
       if (metricLabels[key] !== providedLabels[key]) return false;
     }
     return true;
   }
-  
+
   private updateQuantiles(summary: SummaryMetric, value: number): void {
     // Simplified quantile calculation (in production, use t-digest or similar)
     const values = Array.from(summary.quantiles.keys());
     values.sort((a, b) => a - b);
-    
+
     for (const [quantile, _] of summary.quantiles) {
       // This is a placeholder - real implementation would maintain a sorted list
       summary.quantiles.set(quantile, value);
     }
   }
-  
+
   // ── Tracing ─────────────────────────────────────────────────────────
-  
+
   startTrace(
     operationName: string,
     serviceName: string,
@@ -325,7 +325,7 @@ export class MonitoringService extends EventEmitter {
   ): TraceContext {
     const traceId = parentContext?.traceId || this.generateId();
     const spanId = this.generateId();
-    
+
     const span: TraceSpan = {
       traceId,
       spanId,
@@ -337,104 +337,104 @@ export class MonitoringService extends EventEmitter {
       logs: [],
       status: "unset",
     };
-    
+
     if (!this.traces.has(traceId)) {
       this.traces.set(traceId, []);
     }
-    this.traces.get(traceId)!.push(span);
-    
+    const trace = this.traces.get(traceId);
+    if (trace) trace.push(span);
+
     return { traceId, spanId };
   }
-  
+
   endTrace(context: TraceContext, status: "ok" | "error" = "ok", errorMessage?: string): void {
     const spans = this.traces.get(context.traceId);
     if (!spans) return;
-    
+
     const span = spans.find((s) => s.spanId === context.spanId);
     if (!span) return;
-    
+
     span.endTime = Date.now();
     span.duration = span.endTime - span.startTime;
     span.status = status;
     if (errorMessage) {
       span.errorMessage = errorMessage;
     }
-    
+
     this.emit("trace:completed", span);
   }
-  
+
   addSpanLog(context: TraceContext, message: string, level: string = "info"): void {
     const spans = this.traces.get(context.traceId);
     if (!spans) return;
-    
+
     const span = spans.find((s) => s.spanId === context.spanId);
     if (!span) return;
-    
+
     span.logs.push({
       timestamp: Date.now(),
       message,
       level,
     });
   }
-  
+
   addSpanTag(context: TraceContext, key: string, value: string | number | boolean): void {
     const spans = this.traces.get(context.traceId);
     if (!spans) return;
-    
+
     const span = spans.find((s) => s.spanId === context.spanId);
     if (!span) return;
-    
+
     span.tags[key] = value;
   }
-  
+
   getTrace(traceId: string): TraceSpan[] | undefined {
     return this.traces.get(traceId);
   }
-  
+
   // ── Alert Management ────────────────────────────────────────────────
-  
+
   addAlertRule(rule: AlertRule): void {
     this.alertRules.set(rule.id, rule);
     this.emit("alert:rule:added", rule);
   }
-  
+
   removeAlertRule(ruleId: string): void {
     this.alertRules.delete(ruleId);
     this.emit("alert:rule:removed", ruleId);
   }
-  
+
   updateAlertRule(ruleId: string, updates: Partial<AlertRule>): void {
     const rule = this.alertRules.get(ruleId);
     if (!rule) return;
-    
+
     Object.assign(rule, updates);
     this.emit("alert:rule:updated", rule);
   }
-  
+
   addAlertChannel(channel: AlertChannel): void {
     this.alertChannels.set(channel.id, channel);
     this.emit("alert:channel:added", channel);
   }
-  
+
   removeAlertChannel(channelId: string): void {
     this.alertChannels.delete(channelId);
     this.emit("alert:channel:removed", channelId);
   }
-  
+
   private async checkAlerts(): Promise<void> {
     for (const [ruleId, rule] of this.alertRules) {
       if (!rule.enabled) continue;
-      
+
       const metric = this.getMetricValue(rule.metric);
       if (metric === undefined) continue;
-      
+
       const triggered = this.evaluateCondition(metric, rule.condition, rule.threshold);
-      
+
       if (triggered) {
         const now = Date.now();
-        const shouldAlert =
-          !rule.lastTriggered || (now - rule.lastTriggered) > rule.duration * 1000;
-        
+        const shouldAlert = !rule.lastTriggered || now - rule.lastTriggered > rule.duration * 1000;
+
         if (shouldAlert) {
           const alert: AlertEvent = {
             ruleId,
@@ -446,11 +446,11 @@ export class MonitoringService extends EventEmitter {
             triggeredAt: now,
             triggerCount: rule.triggerCount + 1,
           };
-          
+
           this.activeAlerts.set(ruleId, alert);
           rule.lastTriggered = now;
           rule.triggerCount++;
-          
+
           this.emit("alert:triggered", alert);
           await this.sendAlertNotifications(alert);
         }
@@ -459,14 +459,14 @@ export class MonitoringService extends EventEmitter {
         if (activeAlert && !activeAlert.resolved) {
           activeAlert.resolved = true;
           activeAlert.resolvedAt = Date.now();
-          
+
           this.emit("alert:resolved", activeAlert);
           await this.sendAlertResolution(activeAlert);
         }
       }
     }
   }
-  
+
   private evaluateCondition(value: number, condition: string, threshold: number): boolean {
     switch (condition) {
       case "gt":
@@ -483,12 +483,12 @@ export class MonitoringService extends EventEmitter {
         return false;
     }
   }
-  
+
   private async sendAlertNotifications(alert: AlertEvent): Promise<void> {
     for (const channelId of this.getChannelsForSeverity(alert.severity)) {
       const channel = this.alertChannels.get(channelId);
       if (!channel || !channel.enabled) continue;
-      
+
       try {
         switch (channel.type) {
           case "telegram":
@@ -509,12 +509,12 @@ export class MonitoringService extends EventEmitter {
       }
     }
   }
-  
+
   private async sendAlertResolution(alert: AlertEvent): Promise<void> {
     console.log(`[ALERT RESOLVED] ${alert.ruleName}: ${alert.message}`);
   }
-  
-  private getChannelsForSeverity(severity: string): string[] {
+
+  private getChannelsForSeverity(_severity: string): string[] {
     const channels: string[] = [];
     for (const [id, channel] of this.alertChannels) {
       if (channel.enabled) {
@@ -523,24 +523,33 @@ export class MonitoringService extends EventEmitter {
     }
     return channels;
   }
-  
-  private async sendTelegramAlert(config: any, alert: AlertEvent): Promise<void> {
+
+  private async sendTelegramAlert(
+    config: Record<string, unknown>,
+    alert: AlertEvent
+  ): Promise<void> {
     // Implementation would use Telegram API
-    console.log(`Telegram alert to ${config.chatId}: ${alert.message}`);
+    const chatId = config.chatId as string;
+    console.log(`Telegram alert to ${chatId}: ${alert.message}`);
   }
-  
-  private async sendWebhookAlert(config: any, alert: AlertEvent): Promise<void> {
+
+  private async sendWebhookAlert(
+    config: Record<string, unknown>,
+    alert: AlertEvent
+  ): Promise<void> {
     // Implementation would send HTTP POST
-    console.log(`Webhook alert to ${config.url}: ${alert.message}`);
+    const url = config.url as string;
+    console.log(`Webhook alert to ${url}: ${alert.message}`);
   }
-  
-  private async sendEmailAlert(config: any, alert: AlertEvent): Promise<void> {
+
+  private async sendEmailAlert(config: Record<string, unknown>, alert: AlertEvent): Promise<void> {
     // Implementation would use SMTP
-    console.log(`Email alert to ${config.to}: ${alert.message}`);
+    const to = config.to as string;
+    console.log(`Email alert to ${to}: ${alert.message}`);
   }
-  
+
   // ── Performance Monitoring ──────────────────────────────────────────
-  
+
   private initializeDefaultMetrics(): void {
     // Counters
     this.createCounter("teleton_requests_total", "Total number of requests");
@@ -548,83 +557,87 @@ export class MonitoringService extends EventEmitter {
     this.createCounter("teleton_errors_total", "Total errors");
     this.createCounter("teleton_swarm_decisions_total", "Total swarm decisions");
     this.createCounter("teleton_tools_executed_total", "Total tools executed");
-    
+
     // Gauges
     this.createGauge("teleton_active_sessions", "Active sessions");
     this.createGauge("teleton_memory_usage_bytes", "Memory usage in bytes");
     this.createGauge("teleton_cpu_usage_percent", "CPU usage percentage");
     this.createGauge("teleton_swarm_active_agents", "Active agents in swarm");
     this.createGauge("teleton_event_loop_lag_ms", "Event loop lag in milliseconds");
-    
+
     // Histograms
     this.createHistogram("teleton_request_duration_seconds", "Request duration in seconds");
     this.createHistogram("teleton_tool_execution_seconds", "Tool execution time in seconds");
     this.createHistogram("teleton_llm_response_seconds", "LLM response time in seconds");
     this.createHistogram("teleton_swarm_decision_seconds", "Swarm decision time in seconds");
-    
+
     // Summaries
     this.createSummary("teleton_response_size_bytes", "Response size in bytes");
   }
-  
+
   private startPerformanceMonitoring(): void {
     setInterval(() => {
       const perf = this.collectPerformanceMetrics();
-      
+
       this.set("teleton_memory_usage_bytes", perf.memoryUsage);
       this.set("teleton_cpu_usage_percent", perf.cpuUsage);
       this.set("teleton_event_loop_lag_ms", perf.eventLoopLag);
-      
+
       this.performanceHistory.push({
         timestamp: Date.now(),
         value: perf.memoryUsage,
       });
-      
+
       // Keep only last hour of data
       if (this.performanceHistory.length > 3600) {
         this.performanceHistory.shift();
       }
-      
-      this.checkAlerts();
+
+      void this.checkAlerts();
     }, 5000); // Every 5 seconds
   }
-  
+
   private collectPerformanceMetrics(): PerformanceMetrics {
     const memUsage = process.memoryUsage();
     const uptime = process.uptime();
-    
+
     // Simplified CPU usage (in production, use os module or external lib)
     const cpuUsage = Math.random() * 100; // Placeholder
-    
+
     // Event loop lag measurement
     const start = Date.now();
     setImmediate(() => {
       const lag = Date.now() - start;
       this.set("teleton_event_loop_lag_ms", lag);
     });
-    
+
     return {
       cpuUsage,
       memoryUsage: memUsage.heapUsed,
       memoryHeapUsed: memUsage.heapUsed,
       memoryHeapTotal: memUsage.heapTotal,
       eventLoopLag: 0,
-      activeHandles: (process as unknown as { _getActiveHandles?: () => unknown[] })._getActiveHandles?.().length ?? 0,
-      activeRequests: (process as unknown as { _getActiveRequests?: () => unknown[] })._getActiveRequests?.().length ?? 0,
+      activeHandles:
+        (process as unknown as { _getActiveHandles?: () => unknown[] })._getActiveHandles?.()
+          .length ?? 0,
+      activeRequests:
+        (process as unknown as { _getActiveRequests?: () => unknown[] })._getActiveRequests?.()
+          .length ?? 0,
       uptime,
     };
   }
-  
+
   // ── Swarm Integration ───────────────────────────────────────────────
-  
+
   updateSwarmMetrics(agents: SwarmAgent[], decisions: ConsensusDecision[]): void {
     const activeAgents = agents.filter((a) => a.status !== "idle").length;
     const totalDecisions = decisions.length;
-    
+
     const agentStatuses: Record<string, "idle" | "working" | "error"> = {};
     for (const agent of agents) {
       agentStatuses[agent.role] = agent.status as "idle" | "working" | "error";
     }
-    
+
     this.swarmMetrics = {
       activeAgents,
       totalDecisions,
@@ -633,40 +646,40 @@ export class MonitoringService extends EventEmitter {
       messagesExchanged: this.swarmMetrics.messagesExchanged + agents.length * 2,
       agentStatuses,
     };
-    
+
     this.set("teleton_swarm_active_agents", activeAgents);
     this.inc("teleton_swarm_decisions_total", decisions.length);
   }
-  
+
   private calculateConsensusRate(decisions: ConsensusDecision[]): number {
     if (decisions.length === 0) return 0;
     const successful = decisions.filter((d) => d.consensusReached).length;
     return (successful / decisions.length) * 100;
   }
-  
+
   private calculateAverageDecisionTime(decisions: ConsensusDecision[]): number {
     if (decisions.length === 0) return 0;
     const totalTime = decisions.reduce((sum, d) => sum + (d.duration || 0), 0);
     return totalTime / decisions.length;
   }
-  
+
   // ── Prometheus Export ───────────────────────────────────────────────
-  
+
   getPrometheusMetrics(): string {
     let output = "";
-    
+
     for (const [name, counter] of this.registry.counters) {
       output += `# HELP ${name} ${counter.help}\n`;
       output += `# TYPE ${name} counter\n`;
       output += `${name}${this.formatLabels(counter.labels)} ${counter.value}\n`;
     }
-    
+
     for (const [name, gauge] of this.registry.gauges) {
       output += `# HELP ${name} ${gauge.help}\n`;
       output += `# TYPE ${name} gauge\n`;
       output += `${name}${this.formatLabels(gauge.labels)} ${gauge.value}\n`;
     }
-    
+
     for (const [name, histogram] of this.registry.histograms) {
       output += `# HELP ${name} ${histogram.help}\n`;
       output += `# TYPE ${name} histogram\n`;
@@ -677,7 +690,7 @@ export class MonitoringService extends EventEmitter {
       output += `${name}_sum${this.formatLabels(histogram.labels)} ${histogram.sum}\n`;
       output += `${name}_count${this.formatLabels(histogram.labels)} ${histogram.count}\n`;
     }
-    
+
     for (const [name, summary] of this.registry.summaries) {
       output += `# HELP ${name} ${summary.help}\n`;
       output += `# TYPE ${name} summary\n`;
@@ -687,10 +700,10 @@ export class MonitoringService extends EventEmitter {
       output += `${name}_sum${this.formatLabels(summary.labels)} ${summary.sum}\n`;
       output += `${name}_count${this.formatLabels(summary.labels)} ${summary.count}\n`;
     }
-    
+
     return output;
   }
-  
+
   private formatLabels(labels?: Record<string, string>): string {
     if (!labels || Object.keys(labels).length === 0) {
       return "";
@@ -698,45 +711,47 @@ export class MonitoringService extends EventEmitter {
     const parts = Object.entries(labels).map(([k, v]) => `${k}="${v}"`);
     return `{${parts.join(",")}}`;
   }
-  
+
   // ── Utilities ───────────────────────────────────────────────────────
-  
+
   private generateId(): string {
-    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    return (
+      Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+    );
   }
-  
+
   private getMetricValue(metricName: string): number | undefined {
     const counter = this.registry.counters.get(metricName);
     if (counter) return counter.value;
-    
+
     const gauge = this.registry.gauges.get(metricName);
     if (gauge) return gauge.value;
-    
+
     return undefined;
   }
-  
+
   // ── Getters ─────────────────────────────────────────────────────────
-  
+
   getMetrics(): MetricsRegistry {
     return this.registry;
   }
-  
+
   getAlertRules(): AlertRule[] {
     return Array.from(this.alertRules.values());
   }
-  
+
   getActiveAlerts(): AlertEvent[] {
     return Array.from(this.activeAlerts.values());
   }
-  
+
   getAlertChannels(): AlertChannel[] {
     return Array.from(this.alertChannels.values());
   }
-  
+
   getSwarmMetrics(): SwarmMetrics {
     return this.swarmMetrics;
   }
-  
+
   getPerformanceHistory(): MetricPoint[] {
     return this.performanceHistory;
   }

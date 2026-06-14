@@ -1,6 +1,6 @@
 /**
  * Consciousness Stack: Multi-Level Architecture for Super-Agent
- * 
+ *
  * Implements 4 levels of cognition:
  * 1. REACTIVE: Fast, instinctive responses to immediate stimuli
  * 2. TACTICAL: Short-term planning and execution monitoring
@@ -8,16 +8,15 @@
  * 4. META_COGNITION: Self-analysis, learning, and process optimization
  */
 
-import { z } from 'zod';
-import type { LLMProvider } from '../services/llm/provider.js';
-import type { MemoryService } from '../memory/memory-service.js';
-import { logger } from '../utils/logger.js';
+import type { LLMProvider } from "../services/llm/provider.js";
+import type { MemoryService } from "../memory/memory-service.js";
+import { logger } from "../utils/logger.js";
 
 export enum ConsciousnessLevel {
-  REACTIVE = 'REACTIVE',
-  TACTICAL = 'TACTICAL',
-  STRATEGIC = 'STRATEGIC',
-  META_COGNITION = 'META_COGNITION',
+  REACTIVE = "REACTIVE",
+  TACTICAL = "TACTICAL",
+  STRATEGIC = "STRATEGIC",
+  META_COGNITION = "META_COGNITION",
 }
 
 export interface ThoughtProcess {
@@ -105,7 +104,7 @@ Context: ${JSON.stringify(_context || {})}
 Response:`;
 
     const output = await this.llm.generate(prompt, { temperature: 0.3 });
-    
+
     const thought: ThoughtProcess = {
       level: ConsciousnessLevel.REACTIVE,
       input,
@@ -127,8 +126,8 @@ Response:`;
     const prompt = `You are in TACTICAL mode. Create a short-term plan (3-5 steps).
 
 Input: ${input}
-Active Goals: ${this.state.activeGoals.join(', ')}
-Recent Context: ${this.state.contextWindow.slice(-3).join(' | ')}
+Active Goals: ${this.state.activeGoals.join(", ")}
+Recent Context: ${this.state.contextWindow.slice(-3).join(" | ")}
 
 Generate a tactical plan with:
 1. Immediate next action
@@ -138,7 +137,7 @@ Generate a tactical plan with:
 Plan:`;
 
     const output = await this.llm.generate(prompt, { temperature: 0.5 });
-    
+
     const thought: ThoughtProcess = {
       level: ConsciousnessLevel.TACTICAL,
       input,
@@ -158,12 +157,12 @@ Plan:`;
    */
   private async processStrategic(input: string, _context?: unknown): Promise<ThoughtProcess> {
     const selfModelSummary = JSON.stringify(this.state.selfModel);
-    
+
     const prompt = `You are in STRATEGIC mode. Align actions with long-term goals.
 
 Input: ${input}
 Self Model: ${selfModelSummary}
-Active Goals: ${this.state.activeGoals.join(', ')}
+Active Goals: ${this.state.activeGoals.join(", ")}
 
 Analyze:
 1. Does this align with primary objectives?
@@ -174,7 +173,7 @@ Analyze:
 Strategic Assessment:`;
 
     const output = await this.llm.generate(prompt, { temperature: 0.6 });
-    
+
     const thought: ThoughtProcess = {
       level: ConsciousnessLevel.STRATEGIC,
       input,
@@ -194,11 +193,11 @@ Strategic Assessment:`;
    */
   private async processMetaCognition(input: string, _context?: unknown): Promise<ThoughtProcess> {
     const recentThoughts = this.state.contextWindow.slice(-5);
-    
+
     const prompt = `You are in META-COGNITION mode. Analyze your own thinking process.
 
 Recent Thoughts:
-${recentThoughts.join('\n---\n')}
+${recentThoughts.join("\n---\n")}
 
 Analyze:
 1. What patterns do you see in recent decisions?
@@ -209,10 +208,10 @@ Analyze:
 Meta-Analysis:`;
 
     const output = await this.llm.generate(prompt, { temperature: 0.7 });
-    
+
     // Update self-model based on meta-analysis
     await this.updateSelfModel(output);
-    
+
     const thought: ThoughtProcess = {
       level: ConsciousnessLevel.META_COGNITION,
       input,
@@ -233,25 +232,31 @@ Meta-Analysis:`;
   private determineLevel(input: string, context?: unknown): ConsciousnessLevel {
     const ctx = context as Record<string, unknown> | undefined;
     // Meta-cognition triggers
-    if (input.toLowerCase().includes('analyze my performance') ||
-        input.toLowerCase().includes('how can i improve') ||
-        input.toLowerCase().includes('reflect on')) {
+    if (
+      input.toLowerCase().includes("analyze my performance") ||
+      input.toLowerCase().includes("how can i improve") ||
+      input.toLowerCase().includes("reflect on")
+    ) {
       return ConsciousnessLevel.META_COGNITION;
     }
 
     // Strategic triggers
-    if (input.toLowerCase().includes('long-term') ||
-        input.toLowerCase().includes('strategy') ||
-        input.toLowerCase().includes('allocate resources') ||
-        (ctx?.complexity && (ctx.complexity as number) > 0.8)) {
+    if (
+      input.toLowerCase().includes("long-term") ||
+      input.toLowerCase().includes("strategy") ||
+      input.toLowerCase().includes("allocate resources") ||
+      (ctx?.complexity && (ctx.complexity as number) > 0.8)
+    ) {
       return ConsciousnessLevel.STRATEGIC;
     }
 
     // Tactical triggers
-    if (input.toLowerCase().includes('plan') ||
-        input.toLowerCase().includes('steps') ||
-        input.toLowerCase().includes('execute') ||
-        (ctx?.steps && (ctx.steps as number) > 1)) {
+    if (
+      input.toLowerCase().includes("plan") ||
+      input.toLowerCase().includes("steps") ||
+      input.toLowerCase().includes("execute") ||
+      (ctx?.steps && (ctx.steps as number) > 1)
+    ) {
       return ConsciousnessLevel.TACTICAL;
     }
 
@@ -265,7 +270,7 @@ Meta-Analysis:`;
   private addToContext(input: string, output: string): void {
     const entry = `[${new Date().toISOString()}] Input: ${input} | Output: ${output.substring(0, 100)}...`;
     this.state.contextWindow.push(entry);
-    
+
     if (this.state.contextWindow.length > this.MAX_CONTEXT_WINDOW) {
       this.state.contextWindow.shift();
     }
@@ -276,23 +281,31 @@ Meta-Analysis:`;
    */
   private async updateSelfModel(analysis: string): Promise<void> {
     // Parse analysis to extract insights (simplified)
-    if (analysis.toLowerCase().includes('success')) {
+    if (analysis.toLowerCase().includes("success")) {
       this.state.selfModel.recentSuccesses.push(analysis.substring(0, 200));
       if (this.state.selfModel.recentSuccesses.length > 10) {
         this.state.selfModel.recentSuccesses.shift();
       }
-      this.state.selfModel.efficiencyScore = Math.min(1.0, this.state.selfModel.efficiencyScore + 0.05);
+      this.state.selfModel.efficiencyScore = Math.min(
+        1.0,
+        this.state.selfModel.efficiencyScore + 0.05
+      );
     }
-    
-    if (analysis.toLowerCase().includes('fail') || analysis.toLowerCase().includes('error')) {
+
+    if (analysis.toLowerCase().includes("fail") || analysis.toLowerCase().includes("error")) {
       this.state.selfModel.recentFailures.push(analysis.substring(0, 200));
       if (this.state.selfModel.recentFailures.length > 10) {
         this.state.selfModel.recentFailures.shift();
       }
-      this.state.selfModel.efficiencyScore = Math.max(0.0, this.state.selfModel.efficiencyScore - 0.05);
+      this.state.selfModel.efficiencyScore = Math.max(
+        0.0,
+        this.state.selfModel.efficiencyScore - 0.05
+      );
     }
 
-    logger.info(`[Consciousness] Self-model updated. Efficiency: ${this.state.selfModel.efficiencyScore}`);
+    logger.info(
+      `[Consciousness] Self-model updated. Efficiency: ${this.state.selfModel.efficiencyScore}`
+    );
   }
 
   /**

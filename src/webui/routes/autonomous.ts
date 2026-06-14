@@ -151,6 +151,11 @@ export function createAutonomousRoutes(deps: WebUIServerDeps) {
         ? await deps.autonomousManager.startTask(input)
         : store().createTask(input);
 
+      if (!task) {
+        const response: APIResponse = { success: false, error: "Failed to create task" };
+        return c.json(response, 500);
+      }
+
       const response: APIResponse = { success: true, data: serializeTask(task) };
       return c.json(response, 201);
     } catch (error) {

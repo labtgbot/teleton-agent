@@ -4,16 +4,15 @@
  * Фаза 4: Self-Improvement Loop
  */
 
-import { randomUUID } from 'crypto';
-import { 
-  ExperienceEvent, 
-  ExperienceType,
-  Pattern, 
-  PatternCategory,
-  SelfImprovementConfig 
-} from '../../types/swarm/self-improvement.js';
-import { Logger } from '../../utils/logger.js';
-import { ExperienceGatherer } from './experience-gatherer.js';
+import { randomUUID } from "crypto";
+import { ExperienceType, PatternCategory } from "../../types/swarm/self-improvement.js";
+import type {
+  ExperienceEvent,
+  Pattern,
+  SelfImprovementConfig,
+} from "../../types/swarm/self-improvement.js";
+import { Logger } from "../../utils/logger.js";
+import type { ExperienceGatherer } from "./experience-gatherer.js";
 
 interface PatternMiningConfig extends SelfImprovementConfig {
   minPatternFrequency: number;
@@ -27,10 +26,7 @@ export class PatternMiner {
   private logger: Logger;
   private experienceGatherer: ExperienceGatherer;
 
-  constructor(
-    experienceGatherer: ExperienceGatherer,
-    config: Partial<PatternMiningConfig> = {}
-  ) {
+  constructor(experienceGatherer: ExperienceGatherer, config: Partial<PatternMiningConfig> = {}) {
     this.experienceGatherer = experienceGatherer;
     this.config = {
       minPatternFrequency: 5,
@@ -48,8 +44,8 @@ export class PatternMiner {
       reviewRequired: true,
       ...config,
     };
-    
-    this.logger = new Logger('PatternMiner');
+
+    this.logger = new Logger("PatternMiner");
   }
 
   /**
@@ -57,14 +53,14 @@ export class PatternMiner {
    */
   async minePatterns(): Promise<Pattern[]> {
     if (!this.config.enabled) {
-      this.logger.warn('Pattern mining is disabled');
+      this.logger.warn("Pattern mining is disabled");
       return [];
     }
 
-    this.logger.info('Starting pattern mining process...');
-    
+    this.logger.info("Starting pattern mining process...");
+
     const experiences = this.experienceGatherer.getRecentExperiences(1000);
-    
+
     if (experiences.length < this.config.minExperiencesForPattern) {
       this.logger.warn(`Not enough experiences for pattern mining: ${experiences.length}`);
       return [];
@@ -72,10 +68,10 @@ export class PatternMiner {
 
     // Группировка по категориям
     const grouped = this.groupExperiencesByCategory(experiences);
-    
+
     // Выявление паттернов в каждой группе
     const newPatterns: Pattern[] = [];
-    
+
     for (const [category, categoryExperiences] of Object.entries(grouped)) {
       const patterns = this.extractPatternsFromGroup(
         categoryExperiences,
@@ -88,7 +84,7 @@ export class PatternMiner {
     await this.mergePatterns(newPatterns);
 
     this.logger.info(`Pattern mining complete. Found ${newPatterns.length} new patterns.`);
-    
+
     return newPatterns;
   }
 
@@ -100,10 +96,10 @@ export class PatternMiner {
   ): Record<string, ExperienceEvent[]> {
     const grouped: Record<string, ExperienceEvent[]> = {};
 
-    experiences.forEach(exp => {
+    experiences.forEach((exp) => {
       // Определение категории по тегам и действию
       const category = this.inferCategory(exp);
-      
+
       if (!grouped[category]) {
         grouped[category] = [];
       }
@@ -117,25 +113,25 @@ export class PatternMiner {
    * Вывод категории паттерна из события
    */
   private inferCategory(exp: ExperienceEvent): string {
-    if (exp.tags?.includes('tool_usage')) {
+    if (exp.tags?.includes("tool_usage")) {
       return PatternCategory.TOOL_USAGE;
     }
-    if (exp.tags?.includes('decision_making')) {
+    if (exp.tags?.includes("decision_making")) {
       return PatternCategory.DECISION_MAKING;
     }
-    if (exp.tags?.includes('communication')) {
+    if (exp.tags?.includes("communication")) {
       return PatternCategory.COMMUNICATION;
     }
-    if (exp.action.includes('solve') || exp.action.includes('fix')) {
+    if (exp.action.includes("solve") || exp.action.includes("fix")) {
       return PatternCategory.PROBLEM_SOLVING;
     }
-    if (exp.action.includes('optimize') || exp.action.includes('improve')) {
+    if (exp.action.includes("optimize") || exp.action.includes("improve")) {
       return PatternCategory.OPTIMIZATION;
     }
     if (exp.type === ExperienceType.FAILURE || exp.type === ExperienceType.NEAR_MISS) {
       return PatternCategory.ERROR_HANDLING;
     }
-    
+
     return PatternCategory.RESOURCE_MANAGEMENT;
   }
 
@@ -151,7 +147,7 @@ export class PatternMiner {
     // Кластеризация похожих событий
     const clusters = this.clusterExperiences(experiences);
 
-    clusters.forEach(cluster => {
+    clusters.forEach((cluster) => {
       if (cluster.length >= this.config.minPatternFrequency) {
         const pattern = this.createPatternFromCluster(cluster, category);
         if (pattern && pattern.confidence >= this.config.minConfidence) {
@@ -170,18 +166,18 @@ export class PatternMiner {
     const clusters: ExperienceEvent[][] = [];
     const assigned = new Set<string>();
 
-    experiences.forEach(exp => {
+    experiences.forEach((exp) => {
       if (assigned.has(exp.id)) return;
 
       // Поиск похожих событий
-      const similar = experiences.filter(other => {
+      const similar = experiences.filter((other) => {
         if (other.id === exp.id || assigned.has(other.id)) return false;
         return this.areExperiencesSimilar(exp, other);
       });
 
       if (similar.length > 0) {
         const cluster = [exp, ...similar];
-        cluster.forEach(e => assigned.add(e.id));
+        cluster.forEach((e) => assigned.add(e.id));
         clusters.push(cluster);
       } else {
         // Одиночное событие - свой кластер
@@ -202,22 +198,15 @@ export class PatternMiner {
   ): boolean {
     // Схожесть по действию
     const actionSimilarity = this.stringSimilarity(exp1.action, exp2.action);
-    
+
     // Схожесть по тегам
-    const tagSimilarity = this.jaccardSimilarity(
-      exp1.tags || [],
-      exp2.tags || []
-    );
+    const tagSimilarity = this.jaccardSimilarity(exp1.tags || [], exp2.tags || []);
 
     // Схожесть по типу
     const typeSimilarity = exp1.type === exp2.type ? 1 : 0;
 
     // Взвешенная средняя
-    const totalSimilarity = (
-      actionSimilarity * 0.5 +
-      tagSimilarity * 0.3 +
-      typeSimilarity * 0.2
-    );
+    const totalSimilarity = actionSimilarity * 0.5 + tagSimilarity * 0.3 + typeSimilarity * 0.2;
 
     return totalSimilarity >= threshold;
   }
@@ -228,9 +217,9 @@ export class PatternMiner {
   private stringSimilarity(str1: string, str2: string): number {
     const longer = str1.length > str2.length ? str1 : str2;
     const shorter = str1.length > str2.length ? str2 : str1;
-    
+
     if (longer.length === 0) return 1;
-    
+
     const editDistance = this.levenshteinDistance(longer, shorter);
     return (longer.length - editDistance) / longer.length;
   }
@@ -270,7 +259,7 @@ export class PatternMiner {
    * Коэффициент Жаккара для множеств
    */
   private jaccardSimilarity(set1: string[], set2: string[]): number {
-    const intersection = set1.filter(x => set2.includes(x));
+    const intersection = set1.filter((x) => set2.includes(x));
     const union = new Set([...set1, ...set2]);
     return intersection.length / union.size;
   }
@@ -285,7 +274,7 @@ export class PatternMiner {
     if (cluster.length === 0) return null;
 
     const successCount = cluster.filter(
-      e => e.type === ExperienceType.SUCCESS || e.type === ExperienceType.BREAKTHROUGH
+      (e) => e.type === ExperienceType.SUCCESS || e.type === ExperienceType.BREAKTHROUGH
     ).length;
 
     const successRate = successCount / cluster.length;
@@ -311,7 +300,7 @@ export class PatternMiner {
       conditions,
       actions,
       outcomes,
-      examples: cluster.map(e => e.id),
+      examples: cluster.map((e) => e.id),
       createdAt: Date.now(),
       lastUpdated: Date.now(),
       isValidated: false,
@@ -322,21 +311,14 @@ export class PatternMiner {
   /**
    * Расчет уверенности в паттерне
    */
-  private calculatePatternConfidence(
-    cluster: ExperienceEvent[],
-    successRate: number
-  ): number {
+  private calculatePatternConfidence(cluster: ExperienceEvent[], successRate: number): number {
     const frequencyFactor = Math.min(cluster.length / 10, 1); // до 10 событий
-    const consistencyFactor = 1 - this.standardDeviation(
-      cluster.map(e => e.emotionalWeight || 0)
-    );
+    const consistencyFactor =
+      1 - this.standardDeviation(cluster.map((e) => e.emotionalWeight || 0));
     const recencyFactor = this.calculateRecencyFactor(cluster);
 
     return (
-      successRate * 0.4 +
-      frequencyFactor * 0.3 +
-      consistencyFactor * 0.2 +
-      recencyFactor * 0.1
+      successRate * 0.4 + frequencyFactor * 0.3 + consistencyFactor * 0.2 + recencyFactor * 0.1
     );
   }
 
@@ -346,10 +328,8 @@ export class PatternMiner {
   private calculateRecencyFactor(cluster: ExperienceEvent[]): number {
     const now = Date.now();
     const oneWeek = 7 * 24 * 60 * 60 * 1000;
-    
-    const recentCount = cluster.filter(
-      e => now - e.timestamp < oneWeek
-    ).length;
+
+    const recentCount = cluster.filter((e) => now - e.timestamp < oneWeek).length;
 
     return recentCount / cluster.length;
   }
@@ -359,10 +339,10 @@ export class PatternMiner {
    */
   private standardDeviation(values: number[]): number {
     if (values.length === 0) return 0;
-    
+
     const mean = values.reduce((a, b) => a + b, 0) / values.length;
     const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / values.length;
-    
+
     return Math.sqrt(variance);
   }
 
@@ -372,8 +352,8 @@ export class PatternMiner {
   private extractCommonConditions(experiences: ExperienceEvent[]): string[] {
     const conditionMaps: Map<string, number> = new Map();
 
-    experiences.forEach(exp => {
-      Object.keys(exp.context).forEach(key => {
+    experiences.forEach((exp) => {
+      Object.keys(exp.context).forEach((key) => {
         const value = exp.context[key];
         const condition = `${key}=${value}`;
         conditionMaps.set(condition, (conditionMaps.get(condition) || 0) + 1);
@@ -381,7 +361,7 @@ export class PatternMiner {
     });
 
     const threshold = experiences.length * 0.6; // 60% совпадений
-    
+
     return Array.from(conditionMaps.entries())
       .filter(([_, count]) => count >= threshold)
       .map(([condition, _]) => condition)
@@ -394,13 +374,13 @@ export class PatternMiner {
   private extractCommonActions(experiences: ExperienceEvent[]): string[] {
     const actionCounts: Map<string, number> = new Map();
 
-    experiences.forEach(exp => {
+    experiences.forEach((exp) => {
       const normalized = this.normalizeAction(exp.action);
       actionCounts.set(normalized, (actionCounts.get(normalized) || 0) + 1);
     });
 
     const threshold = experiences.length * 0.5; // 50% совпадений
-    
+
     return Array.from(actionCounts.entries())
       .filter(([_, count]) => count >= threshold)
       .map(([action, _]) => action)
@@ -413,13 +393,13 @@ export class PatternMiner {
   private extractCommonOutcomes(experiences: ExperienceEvent[]): string[] {
     const outcomePatterns: Map<string, number> = new Map();
 
-    experiences.forEach(exp => {
+    experiences.forEach((exp) => {
       const outcomeSummary = JSON.stringify(exp.outcome).substring(0, 50);
       outcomePatterns.set(outcomeSummary, (outcomePatterns.get(outcomeSummary) || 0) + 1);
     });
 
     const threshold = experiences.length * 0.4;
-    
+
     return Array.from(outcomePatterns.entries())
       .filter(([_, count]) => count >= threshold)
       .map(([outcome, _]) => outcome)
@@ -438,16 +418,16 @@ export class PatternMiner {
    */
   private generatePatternName(category: PatternCategory, primaryAction: string): string {
     const prefixes: Record<PatternCategory, string> = {
-      [PatternCategory.DECISION_MAKING]: 'Decision',
-      [PatternCategory.TOOL_USAGE]: 'Tool',
-      [PatternCategory.COMMUNICATION]: 'Communication',
-      [PatternCategory.PROBLEM_SOLVING]: 'Solution',
-      [PatternCategory.RESOURCE_MANAGEMENT]: 'Resource',
-      [PatternCategory.ERROR_HANDLING]: 'Error',
-      [PatternCategory.OPTIMIZATION]: 'Optimization',
+      [PatternCategory.DECISION_MAKING]: "Decision",
+      [PatternCategory.TOOL_USAGE]: "Tool",
+      [PatternCategory.COMMUNICATION]: "Communication",
+      [PatternCategory.PROBLEM_SOLVING]: "Solution",
+      [PatternCategory.RESOURCE_MANAGEMENT]: "Resource",
+      [PatternCategory.ERROR_HANDLING]: "Error",
+      [PatternCategory.OPTIMIZATION]: "Optimization",
     };
 
-    const actionWord = primaryAction.split(' ').slice(0, 2).join(' ');
+    const actionWord = primaryAction.split(" ").slice(0, 2).join(" ");
     return `${prefixes[category]}: ${actionWord}`;
   }
 
@@ -458,15 +438,18 @@ export class PatternMiner {
     cluster: ExperienceEvent[],
     category: PatternCategory
   ): string {
-    const avgSuccessRate = cluster.reduce((acc, e) => {
-      const isSuccessful = e.type === ExperienceType.SUCCESS || 
-                          e.type === ExperienceType.BREAKTHROUGH;
-      return acc + (isSuccessful ? 1 : 0);
-    }, 0) / cluster.length;
+    const avgSuccessRate =
+      cluster.reduce((acc, e) => {
+        const isSuccessful =
+          e.type === ExperienceType.SUCCESS || e.type === ExperienceType.BREAKTHROUGH;
+        return acc + (isSuccessful ? 1 : 0);
+      }, 0) / cluster.length;
 
-    return `Паттерн выявлен из ${cluster.length} событий. ` +
-           `Успешность: ${(avgSuccessRate * 100).toFixed(1)}%. ` +
-           `Категория: ${category}.`;
+    return (
+      `Паттерн выявлен из ${cluster.length} событий. ` +
+      `Успешность: ${(avgSuccessRate * 100).toFixed(1)}%. ` +
+      `Категория: ${category}.`
+    );
   }
 
   /**
@@ -474,21 +457,20 @@ export class PatternMiner {
    */
   private assessPatternRisk(
     successRate: number,
-    category: PatternCategory
-  ): 'low' | 'medium' | 'high' {
-    if (successRate >= 0.9) return 'low';
-    if (successRate >= 0.7) return 'medium';
-    return 'high';
+    _category: PatternCategory
+  ): "low" | "medium" | "high" {
+    if (successRate >= 0.9) return "low";
+    if (successRate >= 0.7) return "medium";
+    return "high";
   }
 
   /**
    * Слияние новых паттернов с существующими
    */
   private async mergePatterns(newPatterns: Pattern[]): Promise<void> {
-    newPatterns.forEach(newPattern => {
+    newPatterns.forEach((newPattern) => {
       const existingIndex = this.patterns.findIndex(
-        p => p.category === newPattern.category && 
-             p.name === newPattern.name
+        (p) => p.category === newPattern.category && p.name === newPattern.name
       );
 
       if (existingIndex !== -1) {
@@ -499,7 +481,7 @@ export class PatternMiner {
         existing.lastUpdated = Date.now();
         existing.successRate = this.recalculateSuccessRate(existing);
         existing.confidence = this.calculatePatternConfidence(
-          existing.examples.map(id => ({ id } as ExperienceEvent)),
+          existing.examples.map((id) => ({ id }) as ExperienceEvent),
           existing.successRate
         );
       } else {
@@ -531,19 +513,21 @@ export class PatternMiner {
     let filtered = [...this.patterns];
 
     if (filter?.category) {
-      filtered = filtered.filter(p => p.category === filter.category);
+      filtered = filtered.filter((p) => p.category === filter.category);
     }
 
     if (filter?.minConfidence !== undefined) {
-      filtered = filtered.filter(p => p.confidence >= filter.minConfidence!);
+      const minConf = filter.minConfidence;
+      filtered = filtered.filter((p) => p.confidence >= minConf);
     }
 
     if (filter?.minFrequency !== undefined) {
-      filtered = filtered.filter(p => p.frequency >= filter.minFrequency!);
+      const minFreq = filter.minFrequency;
+      filtered = filtered.filter((p) => p.frequency >= minFreq);
     }
 
     if (filter?.validatedOnly) {
-      filtered = filtered.filter(p => p.isValidated);
+      filtered = filtered.filter((p) => p.isValidated);
     }
 
     // Сортировка по уверенности
@@ -556,7 +540,7 @@ export class PatternMiner {
    * Валидация паттерна
    */
   validatePattern(patternId: string, isValid: boolean): void {
-    const pattern = this.patterns.find(p => p.id === patternId);
+    const pattern = this.patterns.find((p) => p.id === patternId);
     if (pattern) {
       pattern.isValidated = isValid;
       pattern.lastUpdated = Date.now();
@@ -588,19 +572,17 @@ export class PatternMiner {
     let validatedCount = 0;
     let highRiskCount = 0;
 
-    this.patterns.forEach(p => {
+    this.patterns.forEach((p) => {
       byCategory[p.category]++;
       totalConfidence += p.confidence;
       if (p.isValidated) validatedCount++;
-      if (p.riskLevel === 'high') highRiskCount++;
+      if (p.riskLevel === "high") highRiskCount++;
     });
 
     return {
       total: this.patterns.length,
       byCategory,
-      averageConfidence: this.patterns.length > 0 
-        ? totalConfidence / this.patterns.length 
-        : 0,
+      averageConfidence: this.patterns.length > 0 ? totalConfidence / this.patterns.length : 0,
       validatedCount,
       highRiskCount,
     };

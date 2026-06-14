@@ -55,7 +55,7 @@ export class AutonomousTaskManager {
   }
 
   /** Create a new autonomous task and start it immediately. */
-  async startTask(input: CreateTaskInput): Promise<AutonomousTask> {
+  async startTask(input: CreateTaskInput): Promise<AutonomousTask | undefined> {
     const running = this.runningLoops.size;
     if (running >= this.config.maxParallelTasks) {
       throw new Error(
@@ -73,6 +73,11 @@ export class AutonomousTaskManager {
       context: input.context,
       priority: input.priority,
     });
+
+    if (!task) {
+      log.error("Failed to create autonomous task");
+      return undefined;
+    }
 
     log.info({ taskId: task.id }, "Starting autonomous task");
 

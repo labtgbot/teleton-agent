@@ -4,15 +4,10 @@
  * Фаза 4: Self-Improvement Loop
  */
 
-import { randomUUID } from 'crypto';
-import { 
-  ExperienceEvent, 
-  ExperienceType, 
-  Pattern, 
-  PatternCategory,
-  SelfImprovementConfig 
-} from '../../types/swarm/self-improvement.js';
-import { Logger } from '../../utils/logger.js';
+import { randomUUID } from "crypto";
+import { ExperienceType } from "../../types/swarm/self-improvement.js";
+import type { ExperienceEvent, SelfImprovementConfig } from "../../types/swarm/self-improvement.js";
+import { Logger } from "../../utils/logger.js";
 
 interface ExperienceGatheringConfig extends SelfImprovementConfig {
   storagePath: string;
@@ -28,7 +23,7 @@ export class ExperienceGatherer {
 
   constructor(config: Partial<ExperienceGatheringConfig> = {}) {
     this.config = {
-      storagePath: './data/experiences',
+      storagePath: "./data/experiences",
       autoCompress: true,
       compressionThreshold: 10000,
       enabled: true,
@@ -43,9 +38,9 @@ export class ExperienceGatherer {
       reviewRequired: true,
       ...config,
     };
-    
-    this.logger = new Logger('ExperienceGatherer');
-    this.loadExperiences();
+
+    this.logger = new Logger("ExperienceGatherer");
+    void this.loadExperiences();
   }
 
   /**
@@ -56,10 +51,10 @@ export class ExperienceGatherer {
     outcome: Record<string, unknown>,
     context: Record<string, unknown>,
     type: ExperienceType,
-    metrics?: ExperienceEvent['metrics']
+    metrics?: ExperienceEvent["metrics"]
   ): Promise<ExperienceEvent> {
     if (!this.config.enabled) {
-      throw new Error('Experience gathering is disabled');
+      throw new Error("Experience gathering is disabled");
     }
 
     const emotionalWeight = this.calculateEmotionalWeight(type, outcome, metrics);
@@ -97,7 +92,7 @@ export class ExperienceGatherer {
   private calculateEmotionalWeight(
     type: ExperienceType,
     outcome: Record<string, unknown>,
-    metrics?: ExperienceEvent['metrics']
+    metrics?: ExperienceEvent["metrics"]
   ): number {
     let weight = 0;
 
@@ -153,19 +148,19 @@ export class ExperienceGatherer {
     }
 
     if (context.alternativesConsidered) {
-      lessons.push('Рассмотреть альтернативы в будущем');
+      lessons.push("Рассмотреть альтернативы в будущем");
     }
 
     return lessons;
   }
 
   private summarizeFailure(outcome: Record<string, unknown>): string {
-    const error = outcome.error as string || 'неизвестная ошибка';
+    const error = (outcome.error as string) || "неизвестная ошибка";
     return error.substring(0, 100);
   }
 
   private summarizeSuccess(outcome: Record<string, unknown>): string {
-    const result = outcome.result as string || 'успешный результат';
+    const result = (outcome.result as string) || "успешный результат";
     return result.substring(0, 100);
   }
 
@@ -180,15 +175,15 @@ export class ExperienceGatherer {
     const tags: string[] = [type];
 
     // Тег по категории действия
-    if (action.includes('tool')) tags.push('tool_usage');
-    if (action.includes('decision')) tags.push('decision_making');
-    if (action.includes('communicat')) tags.push('communication');
-    if (action.includes('plan')) tags.push('planning');
+    if (action.includes("tool")) tags.push("tool_usage");
+    if (action.includes("decision")) tags.push("decision_making");
+    if (action.includes("communicat")) tags.push("communication");
+    if (action.includes("plan")) tags.push("planning");
 
     // Тег по контексту
-    if (context.highStakes) tags.push('high_stakes');
-    if (context.timeSensitive) tags.push('time_sensitive');
-    if (context.recurring) tags.push('recurring');
+    if (context.highStakes) tags.push("high_stakes");
+    if (context.timeSensitive) tags.push("time_sensitive");
+    if (context.recurring) tags.push("recurring");
 
     return tags;
   }
@@ -206,21 +201,22 @@ export class ExperienceGatherer {
     let filtered = [...this.experiences];
 
     if (filter?.type) {
-      filtered = filtered.filter(e => e.type === filter.type);
+      filtered = filtered.filter((e) => e.type === filter.type);
     }
 
     if (filter?.tags && filter.tags.length > 0) {
-      filtered = filtered.filter(e => 
-        e.tags?.some(tag => filter.tags!.includes(tag))
-      );
+      const tags = filter.tags;
+      filtered = filtered.filter((e) => e.tags?.some((tag) => tags.includes(tag)));
     }
 
     if (filter?.startTime) {
-      filtered = filtered.filter(e => e.timestamp >= filter.startTime!);
+      const startTime = filter.startTime;
+      filtered = filtered.filter((e) => e.timestamp >= startTime);
     }
 
     if (filter?.endTime) {
-      filtered = filtered.filter(e => e.timestamp <= filter.endTime!);
+      const endTime = filter.endTime;
+      filtered = filtered.filter((e) => e.timestamp <= endTime);
     }
 
     // Сортировка по времени (новые сначала)
@@ -243,14 +239,17 @@ export class ExperienceGatherer {
   /**
    * Подписка на новые события
    */
-  subscribe(eventType: ExperienceType | 'all', callback: (event: ExperienceEvent) => void): () => void {
-    const key = eventType === 'all' ? 'all' : eventType;
-    
+  subscribe(
+    eventType: ExperienceType | "all",
+    callback: (event: ExperienceEvent) => void
+  ): () => void {
+    const key = eventType === "all" ? "all" : eventType;
+
     if (!this.eventListeners.has(key)) {
       this.eventListeners.set(key, new Set());
     }
-    
-    this.eventListeners.get(key)!.add(callback);
+
+    this.eventListeners.get(key)?.add(callback);
 
     return () => {
       this.eventListeners.get(key)?.delete(callback);
@@ -262,10 +261,10 @@ export class ExperienceGatherer {
    */
   private notifyListeners(event: ExperienceEvent): void {
     // Слушатели всех событий
-    this.eventListeners.get('all')?.forEach(cb => cb(event));
+    this.eventListeners.get("all")?.forEach((cb) => cb(event));
 
     // Слушатели конкретного типа
-    this.eventListeners.get(event.type)?.forEach(cb => cb(event));
+    this.eventListeners.get(event.type)?.forEach((cb) => cb(event));
   }
 
   /**
@@ -282,7 +281,7 @@ export class ExperienceGatherer {
 
     if (timeRange) {
       experiences = experiences.filter(
-        e => e.timestamp >= timeRange.start && e.timestamp <= timeRange.end
+        (e) => e.timestamp >= timeRange.start && e.timestamp <= timeRange.end
       );
     }
 
@@ -297,28 +296,26 @@ export class ExperienceGatherer {
     let totalEmotionalWeight = 0;
     const tagCounts: Map<string, number> = new Map();
 
-    experiences.forEach(exp => {
+    experiences.forEach((exp) => {
       byType[exp.type]++;
       totalEmotionalWeight += exp.emotionalWeight || 0;
-      
-      exp.tags?.forEach(tag => {
+
+      exp.tags?.forEach((tag) => {
         tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
       });
     });
 
-    const successCount = byType[ExperienceType.SUCCESS] + 
-                         byType[ExperienceType.BREAKTHROUGH] +
-                         byType[ExperienceType.PARTIAL_SUCCESS] * 0.5;
+    const successCount =
+      byType[ExperienceType.SUCCESS] +
+      byType[ExperienceType.BREAKTHROUGH] +
+      byType[ExperienceType.PARTIAL_SUCCESS] * 0.5;
 
     return {
       total: experiences.length,
       byType,
-      averageEmotionalWeight: experiences.length > 0 
-        ? totalEmotionalWeight / experiences.length 
-        : 0,
-      successRate: experiences.length > 0 
-        ? successCount / experiences.length 
-        : 0,
+      averageEmotionalWeight:
+        experiences.length > 0 ? totalEmotionalWeight / experiences.length : 0,
+      successRate: experiences.length > 0 ? successCount / experiences.length : 0,
       topTags: Array.from(tagCounts.entries())
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10)
@@ -329,7 +326,7 @@ export class ExperienceGatherer {
   /**
    * Сохранение события в хранилище
    */
-  private async persistExperience(experience: ExperienceEvent): Promise<void> {
+  private async persistExperience(_experience: ExperienceEvent): Promise<void> {
     // TODO: Реализовать сохранение в SQLite/файл
     // Для现在 просто держим в памяти
     if (this.config.autoCompress && this.experiences.length >= this.config.compressionThreshold) {
@@ -342,19 +339,19 @@ export class ExperienceGatherer {
    */
   private async loadExperiences(): Promise<void> {
     // TODO: Реализовать загрузку из SQLite/файла
-    this.logger.info('Experience gatherer initialized');
+    this.logger.info("Experience gatherer initialized");
   }
 
   /**
    * Сжатие старых событий (архивация)
    */
   private async compressOldExperiences(): Promise<void> {
-    const cutoffDate = Date.now() - (this.config.retentionDays * 24 * 60 * 60 * 1000);
-    const oldExperiences = this.experiences.filter(e => e.timestamp < cutoffDate);
-    
+    const cutoffDate = Date.now() - this.config.retentionDays * 24 * 60 * 60 * 1000;
+    const oldExperiences = this.experiences.filter((e) => e.timestamp < cutoffDate);
+
     if (oldExperiences.length > 0) {
       // TODO: Архивировать старые события
-      this.experiences = this.experiences.filter(e => e.timestamp >= cutoffDate);
+      this.experiences = this.experiences.filter((e) => e.timestamp >= cutoffDate);
       this.logger.info(`Compressed ${oldExperiences.length} old experiences`);
     }
   }
@@ -364,38 +361,33 @@ export class ExperienceGatherer {
    */
   async cleanup(retentionDays?: number): Promise<number> {
     const days = retentionDays || this.config.retentionDays;
-    const cutoffDate = Date.now() - (days * 24 * 60 * 60 * 1000);
-    
+    const cutoffDate = Date.now() - days * 24 * 60 * 60 * 1000;
+
     const initialCount = this.experiences.length;
-    this.experiences = this.experiences.filter(e => e.timestamp >= cutoffDate);
-    
+    this.experiences = this.experiences.filter((e) => e.timestamp >= cutoffDate);
+
     const removed = initialCount - this.experiences.length;
     if (removed > 0) {
       this.logger.info(`Cleaned up ${removed} experiences older than ${days} days`);
     }
-    
+
     return removed;
   }
 
   /**
    * Экспорт опыта для анализа
    */
-  exportForAnalysis(format: 'json' | 'csv' = 'json'): string {
-    if (format === 'json') {
+  exportForAnalysis(format: "json" | "csv" = "json"): string {
+    if (format === "json") {
       return JSON.stringify(this.experiences, null, 2);
     }
-    
+
     // CSV экспорт
-    const headers = ['id', 'timestamp', 'type', 'action', 'emotionalWeight', 'tags'];
-    const rows = this.experiences.map(e => [
-      e.id,
-      e.timestamp,
-      e.type,
-      e.action,
-      e.emotionalWeight,
-      (e.tags || []).join(';'),
-    ].join(','));
-    
-    return [headers.join(','), ...rows].join('\n');
+    const headers = ["id", "timestamp", "type", "action", "emotionalWeight", "tags"];
+    const rows = this.experiences.map((e) =>
+      [e.id, e.timestamp, e.type, e.action, e.emotionalWeight, (e.tags || []).join(";")].join(",")
+    );
+
+    return [headers.join(","), ...rows].join("\n");
   }
 }

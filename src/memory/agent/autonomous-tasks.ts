@@ -175,7 +175,7 @@ export class AutonomousTaskStore {
     retryPolicy?: RetryPolicy;
     context?: Record<string, unknown>;
     priority?: TaskPriority;
-  }): AutonomousTask {
+  }): AutonomousTask | undefined {
     const id = randomUUID();
     const now = Math.floor(Date.now() / 1000);
     const retryPolicy: RetryPolicy = input.retryPolicy ?? { maxRetries: 3, backoff: "exponential" };
@@ -202,20 +202,17 @@ export class AutonomousTaskStore {
         now
       );
 
-    return this.getTask(id)!;
+    return this.getTask(id);
   }
 
   getTask(id: string): AutonomousTask | undefined {
-    const row = this.db
-      .prepare(`SELECT * FROM autonomous_tasks WHERE id = ?`)
-      .get(id) as AutonomousTaskRow | undefined;
+    const row = this.db.prepare(`SELECT * FROM autonomous_tasks WHERE id = ?`).get(id) as
+      | AutonomousTaskRow
+      | undefined;
     return row ? rowToTask(row) : undefined;
   }
 
-  listTasks(filter?: {
-    status?: AutonomousTaskStatus;
-    priority?: TaskPriority;
-  }): AutonomousTask[] {
+  listTasks(filter?: { status?: AutonomousTaskStatus; priority?: TaskPriority }): AutonomousTask[] {
     let sql = `SELECT * FROM autonomous_tasks WHERE 1=1`;
     const params: string[] = [];
 
@@ -290,9 +287,7 @@ export class AutonomousTaskStore {
   updateLastCheckpoint(id: string, checkpointId: string): void {
     const now = Math.floor(Date.now() / 1000);
     this.db
-      .prepare(
-        `UPDATE autonomous_tasks SET last_checkpoint_id = ?, updated_at = ? WHERE id = ?`
-      )
+      .prepare(`UPDATE autonomous_tasks SET last_checkpoint_id = ?, updated_at = ? WHERE id = ?`)
       .run(checkpointId, now, id);
   }
 
@@ -316,7 +311,7 @@ export class AutonomousTaskStore {
     state: Record<string, unknown>;
     toolCalls?: unknown[];
     nextActionHint?: string;
-  }): TaskCheckpoint {
+  }): TaskCheckpoint | undefined {
     const id = randomUUID();
     const now = Math.floor(Date.now() / 1000);
 
@@ -336,13 +331,13 @@ export class AutonomousTaskStore {
       );
 
     this.updateLastCheckpoint(input.taskId, id);
-    return this.getCheckpoint(id)!;
+    return this.getCheckpoint(id);
   }
 
   getCheckpoint(id: string): TaskCheckpoint | undefined {
-    const row = this.db
-      .prepare(`SELECT * FROM task_checkpoints WHERE id = ?`)
-      .get(id) as CheckpointRow | undefined;
+    const row = this.db.prepare(`SELECT * FROM task_checkpoints WHERE id = ?`).get(id) as
+      | CheckpointRow
+      | undefined;
     return row ? rowToCheckpoint(row) : undefined;
   }
 
@@ -391,9 +386,7 @@ export class AutonomousTaskStore {
 
   getExecutionLogs(taskId: string, limit = 100): ExecutionLogEntry[] {
     const rows = this.db
-      .prepare(
-        `SELECT * FROM execution_logs WHERE task_id = ? ORDER BY id ASC LIMIT ?`
-      )
+      .prepare(`SELECT * FROM execution_logs WHERE task_id = ? ORDER BY id ASC LIMIT ?`)
       .all(taskId, limit) as ExecutionLogRow[];
     return rows.map(rowToLogEntry);
   }
