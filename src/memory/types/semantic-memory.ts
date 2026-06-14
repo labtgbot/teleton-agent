@@ -1,6 +1,6 @@
 /**
  * Semantic Memory: Fact-based knowledge graph system
- * 
+ *
  * Stores structured knowledge with:
  * - Entities and relationships
  * - Concept hierarchies
@@ -8,13 +8,13 @@
  * - Spreading activation for retrieval
  */
 
-import { logger } from '../../utils/logger';
+import { logger } from "../../utils/logger.js";
 
 export interface Entity {
   id: string;
   name: string;
   type: EntityType;
-  properties: Record<string, any>;
+  properties: Record<string, unknown>;
   connections: Connection[];
   activationLevel: number;
   lastActivated?: number;
@@ -38,24 +38,24 @@ export interface FactTriple {
 }
 
 export enum EntityType {
-  CONCEPT = 'CONCEPT',
-  PERSON = 'PERSON',
-  ORGANIZATION = 'ORGANIZATION',
-  LOCATION = 'LOCATION',
-  EVENT = 'EVENT',
-  OBJECT = 'OBJECT',
-  ABSTRACT = 'ABSTRACT',
+  CONCEPT = "CONCEPT",
+  PERSON = "PERSON",
+  ORGANIZATION = "ORGANIZATION",
+  LOCATION = "LOCATION",
+  EVENT = "EVENT",
+  OBJECT = "OBJECT",
+  ABSTRACT = "ABSTRACT",
 }
 
 export enum RelationshipType {
-  IS_A = 'IS_A', // Taxonomy
-  PART_OF = 'PART_OF', // Meronymy
-  RELATED_TO = 'RELATED_TO', // General association
-  CAUSES = 'CAUSES', // Causality
-  USED_FOR = 'USED_FOR', // Function
-  LOCATED_IN = 'LOCATED_IN', // Spatial
-  CREATED_BY = 'CREATED_BY', // Origin
-  SIMILAR_TO = 'SIMILAR_TO', // Similarity
+  IS_A = "IS_A", // Taxonomy
+  PART_OF = "PART_OF", // Meronymy
+  RELATED_TO = "RELATED_TO", // General association
+  CAUSES = "CAUSES", // Causality
+  USED_FOR = "USED_FOR", // Function
+  LOCATED_IN = "LOCATED_IN", // Spatial
+  CREATED_BY = "CREATED_BY", // Origin
+  SIMILAR_TO = "SIMILAR_TO", // Similarity
 }
 
 export interface SemanticQuery {
@@ -85,10 +85,10 @@ export class SemanticMemory {
   async addEntity(
     name: string,
     type: EntityType,
-    properties: Record<string, any> = {}
+    properties: Record<string, unknown> = {}
   ): Promise<string> {
     const id = this.normalizeId(name);
-    
+
     const existing = this.entities.get(id);
     if (existing) {
       // Update existing entity
@@ -98,7 +98,7 @@ export class SemanticMemory {
       logger.debug(`[SemanticMemory] Updated entity: ${name}`);
       return id;
     }
-    
+
     const entity: Entity = {
       id,
       name,
@@ -108,9 +108,9 @@ export class SemanticMemory {
       activationLevel: 0.5,
       createdAt: Date.now(),
     };
-    
+
     this.entities.set(id, entity);
-    
+
     // Auto-create IS_A connection to type
     const typeId = this.normalizeId(EntityType[type]);
     if (!this.entities.has(typeId)) {
@@ -121,12 +121,12 @@ export class SemanticMemory {
       relationship: RelationshipType.IS_A,
       strength: 1.0,
     });
-    
+
     // Enforce limit
     if (this.entities.size > this.MAX_ENTITIES) {
       this.pruneLowActivationEntities();
     }
-    
+
     logger.debug(`[SemanticMemory] Added entity: ${name} (${type})`);
     return id;
   }
@@ -143,17 +143,17 @@ export class SemanticMemory {
   ): Promise<void> {
     const source = this.entities.get(sourceId);
     const target = this.entities.get(targetId);
-    
+
     if (!source || !target) {
       logger.warn(`[SemanticMemory] Cannot add relationship: entity not found`);
       return;
     }
-    
+
     // Check if relationship already exists
     const existingConn = source.connections.find(
-      c => c.targetId === targetId && c.relationship === relationship
+      (c) => c.targetId === targetId && c.relationship === relationship
     );
-    
+
     if (existingConn) {
       existingConn.strength = Math.max(existingConn.strength, strength);
       existingConn.context = context || existingConn.context;
@@ -165,7 +165,7 @@ export class SemanticMemory {
         context,
       });
     }
-    
+
     // Add bidirectional connection for symmetric relationships
     if ([RelationshipType.SIMILAR_TO, RelationshipType.RELATED_TO].includes(relationship)) {
       target.connections.push({
@@ -175,8 +175,10 @@ export class SemanticMemory {
         context,
       });
     }
-    
-    logger.debug(`[SemanticMemory] Added relationship: ${source.name} --[${relationship}]--> ${target.name}`);
+
+    logger.debug(
+      `[SemanticMemory] Added relationship: ${source.name} --[${relationship}]--> ${target.name}`
+    );
   }
 
   /**
@@ -184,13 +186,15 @@ export class SemanticMemory {
    */
   async addFact(triple: FactTriple): Promise<void> {
     this.facts.push(triple);
-    
+
     // Limit facts storage
     if (this.facts.length > 10000) {
       this.facts = this.facts.slice(-5000);
     }
-    
-    logger.debug(`[SemanticMemory] Added fact: ${triple.subject} ${triple.predicate} ${triple.object}`);
+
+    logger.debug(
+      `[SemanticMemory] Added fact: ${triple.subject} ${triple.predicate} ${triple.object}`
+    );
   }
 
   /**
@@ -198,38 +202,36 @@ export class SemanticMemory {
    */
   query(filters: SemanticQuery): Entity[] {
     let results = Array.from(this.entities.values());
-    
+
     // Filter by name
     if (filters.entityName) {
       const searchLower = filters.entityName.toLowerCase();
-      results = results.filter(e => 
-        e.name.toLowerCase().includes(searchLower)
-      );
+      results = results.filter((e) => e.name.toLowerCase().includes(searchLower));
     }
-    
+
     // Filter by type
     if (filters.entityType) {
-      results = results.filter(e => e.type === filters.entityType);
+      results = results.filter((e) => e.type === filters.entityType);
     }
-    
+
     // Filter by activation
     if (filters.minActivation !== undefined) {
-      results = results.filter(e => e.activationLevel >= filters.minActivation!);
+      results = results.filter((e) => e.activationLevel >= (filters.minActivation ?? 0));
     }
-    
+
     // Apply spreading activation if querying relationships
     if (filters.relationships && filters.relationships.length > 0) {
       results = this.spreadingActivation(results, filters.relationships, filters.maxHops || 2);
     }
-    
+
     // Sort by activation level
     results.sort((a, b) => b.activationLevel - a.activationLevel);
-    
+
     // Limit results
     if (filters.limit) {
       results = results.slice(0, filters.limit);
     }
-    
+
     return results;
   }
 
@@ -246,20 +248,21 @@ export class SemanticMemory {
   findPath(sourceId: string, targetId: string, maxHops: number = 5): string[] | null {
     const visited = new Set<string>();
     const queue: Array<{ id: string; path: string[] }> = [{ id: sourceId, path: [sourceId] }];
-    
+
     while (queue.length > 0) {
-      const current = queue.shift()!;
-      
+      const current = queue.shift();
+      if (!current) break;
+
       if (current.id === targetId) {
         return current.path;
       }
-      
+
       if (visited.has(current.id) || current.path.length > maxHops) continue;
       visited.add(current.id);
-      
+
       const entity = this.entities.get(current.id);
       if (!entity) continue;
-      
+
       for (const conn of entity.connections) {
         if (!visited.has(conn.targetId)) {
           queue.push({
@@ -269,21 +272,18 @@ export class SemanticMemory {
         }
       }
     }
-    
+
     return null;
   }
 
   /**
    * Retrieve facts matching pattern
    */
-  retrieveFacts(
-    subject?: string,
-    predicate?: string,
-    object?: string
-  ): FactTriple[] {
-    return this.facts.filter(fact => {
+  retrieveFacts(subject?: string, predicate?: string, object?: string): FactTriple[] {
+    return this.facts.filter((fact) => {
       if (subject && !fact.subject.toLowerCase().includes(subject.toLowerCase())) return false;
-      if (predicate && !fact.predicate.toLowerCase().includes(predicate.toLowerCase())) return false;
+      if (predicate && !fact.predicate.toLowerCase().includes(predicate.toLowerCase()))
+        return false;
       if (object && !fact.object.toLowerCase().includes(object.toLowerCase())) return false;
       return true;
     });
@@ -295,10 +295,10 @@ export class SemanticMemory {
   activate(entityId: string, amount: number = 0.3): void {
     const entity = this.entities.get(entityId);
     if (!entity) return;
-    
+
     entity.activationLevel = Math.min(1.0, entity.activationLevel + amount);
     entity.lastActivated = Date.now();
-    
+
     // Spread activation to connected entities
     for (const conn of entity.connections) {
       const target = this.entities.get(conn.targetId);
@@ -313,22 +313,22 @@ export class SemanticMemory {
    * Consolidate semantic memory (optimize graph)
    */
   async consolidate(): Promise<{ merged: number; pruned: number }> {
-    logger.info('[SemanticMemory] Starting consolidation...');
-    
+    logger.info("[SemanticMemory] Starting consolidation...");
+
     let merged = 0;
     let pruned = 0;
-    
+
     // Merge similar entities
     merged = await this.mergeSimilarEntities();
-    
+
     // Prune low-activation entities
     pruned = this.pruneLowActivationEntities();
-    
+
     // Decay all activations
     for (const entity of this.entities.values()) {
-      entity.activationLevel *= (1 - this.ACTIVATION_DECAY);
+      entity.activationLevel *= 1 - this.ACTIVATION_DECAY;
     }
-    
+
     logger.info(`[SemanticMemory] Consolidation complete: ${merged} merged, ${pruned} pruned`);
     return { merged, pruned };
   }
@@ -336,20 +336,20 @@ export class SemanticMemory {
   /**
    * Get knowledge graph statistics
    */
-  getStats(): { 
-    totalEntities: number; 
-    byType: Record<string, number>; 
+  getStats(): {
+    totalEntities: number;
+    byType: Record<string, number>;
     totalFacts: number;
     avgConnections: number;
   } {
     const byType: Record<string, number> = {};
     let totalConnections = 0;
-    
+
     for (const entity of this.entities.values()) {
       byType[entity.type] = (byType[entity.type] || 0) + 1;
       totalConnections += entity.connections.length;
     }
-    
+
     return {
       totalEntities: this.entities.size,
       byType,
@@ -362,7 +362,10 @@ export class SemanticMemory {
    * Normalize name to ID
    */
   private normalizeId(name: string): string {
-    return `ent_${name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')}`;
+    return `ent_${name
+      .toLowerCase()
+      .replace(/\s+/g, "_")
+      .replace(/[^a-z0-9_]/g, "")}`;
   }
 
   /**
@@ -374,20 +377,20 @@ export class SemanticMemory {
     maxHops: number
   ): Entity[] {
     const activated = new Map<string, number>();
-    
+
     // Initialize with seed entities
     for (const entity of seedEntities) {
       activated.set(entity.id, entity.activationLevel);
     }
-    
+
     // Spread activation through graph
     for (let hop = 0; hop < maxHops; hop++) {
       const newActivations = new Map<string, number>();
-      
+
       for (const [id, level] of activated.entries()) {
         const entity = this.entities.get(id);
         if (!entity) continue;
-        
+
         for (const conn of entity.connections) {
           if (relationships.includes(conn.relationship)) {
             const spreadAmount = level * conn.strength * 0.5;
@@ -396,14 +399,14 @@ export class SemanticMemory {
           }
         }
       }
-      
+
       // Merge new activations
       for (const [id, level] of newActivations.entries()) {
         const current = activated.get(id) || 0;
         activated.set(id, Math.max(current, level));
       }
     }
-    
+
     // Return entities above threshold
     const result: Entity[] = [];
     for (const [id, level] of activated.entries()) {
@@ -414,7 +417,7 @@ export class SemanticMemory {
         }
       }
     }
-    
+
     return result;
   }
 
@@ -424,32 +427,32 @@ export class SemanticMemory {
   private async mergeSimilarEntities(): Promise<number> {
     let merged = 0;
     const processed = new Set<string>();
-    
+
     for (const [id1, entity1] of this.entities.entries()) {
       if (processed.has(id1)) continue;
-      
+
       for (const [id2, entity2] of this.entities.entries()) {
         if (id1 === id2 || processed.has(id2)) continue;
-        
+
         // Check if same name (case-insensitive)
         if (entity1.name.toLowerCase() === entity2.name.toLowerCase()) {
           // Merge entity2 into entity1
           entity1.properties = { ...entity1.properties, ...entity2.properties };
           entity1.connections.push(...entity2.connections);
-          
+
           // Remove entity2
           this.entities.delete(id2);
           processed.add(id2);
           merged++;
-          
+
           logger.debug(`[SemanticMemory] Merged duplicate: ${entity1.name}`);
           break;
         }
       }
-      
+
       processed.add(id1);
     }
-    
+
     return merged;
   }
 
@@ -458,24 +461,22 @@ export class SemanticMemory {
    */
   private pruneLowActivationEntities(): number {
     let pruned = 0;
-    
+
     for (const [id, entity] of this.entities.entries()) {
       if (entity.activationLevel < this.ACTIVATION_THRESHOLD) {
         // Check if connected to high-activation entities
-        const hasImportantConnection = entity.connections.some(
-          conn => {
-            const target = this.entities.get(conn.targetId);
-            return target && target.activationLevel > 0.5 && conn.strength > 0.7;
-          }
-        );
-        
+        const hasImportantConnection = entity.connections.some((conn) => {
+          const target = this.entities.get(conn.targetId);
+          return target && target.activationLevel > 0.5 && conn.strength > 0.7;
+        });
+
         if (!hasImportantConnection) {
           this.entities.delete(id);
           pruned++;
         }
       }
     }
-    
+
     return pruned;
   }
 }

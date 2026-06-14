@@ -25,10 +25,27 @@ function createTestDb(): Database.Database {
 
 function makeExecConfig(overrides?: Partial<ExecConfig>): ExecConfig {
   return {
-    mode: "yolo",
+    mode: "allowlist",
     scope: "admin-only",
     allowlist: [],
-    command_allowlist: [],
+    command_allowlist: [
+      "echo",
+      "ls",
+      "git status",
+      "nonexistent",
+      "any command",
+      "apt",
+      "pip",
+      "npm",
+      "docker",
+      "systemctl",
+      "free",
+      "df",
+      "uptime",
+      "cat /proc/loadavg",
+      "uname",
+      "nproc",
+    ],
     limits: { timeout: 120, max_output: 50000 },
     audit: { log_commands: true },
     ...overrides,
@@ -375,23 +392,14 @@ describe("exec_run allowlist mode", () => {
     expect(result.error).toContain("none configured");
   });
 
-  it("yolo mode still runs commands without allowlist check", async () => {
-    mockRunCommand.mockResolvedValue({
-      stdout: "",
-      stderr: "",
-      exitCode: 0,
-      signal: null,
-      duration: 10,
-      truncated: false,
-      timedOut: false,
-    });
-
+  it("yolo mode is disabled for security — returns error", async () => {
     const config = makeExecConfig({ mode: "yolo", command_allowlist: [] });
     const executor = createExecRunExecutor(db, config);
     const result = await executor({ command: "any command" }, makeContext());
 
-    expect(result.success).toBe(true);
-    expect(mockRunCommand).toHaveBeenCalled();
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("YOLO exec mode is disabled");
+    expect(mockRunCommand).not.toHaveBeenCalled();
   });
 });
 

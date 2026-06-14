@@ -1,6 +1,6 @@
 /**
  * Monitoring API Routes
- * 
+ *
  * Provides REST endpoints for monitoring metrics, alerts, and traces.
  */
 
@@ -47,10 +47,10 @@ monitoringRoutes.get("/metrics", (c) => {
   if (!monitoringState.prometheusEnabled) {
     return c.text("Prometheus metrics disabled", 403);
   }
-  
+
   const monitoring = getMonitoringService();
   const metrics = monitoring.getPrometheusMetrics();
-  
+
   return c.text(metrics, {
     headers: {
       "Content-Type": "text/plain; version=0.0.4",
@@ -63,7 +63,7 @@ monitoringRoutes.get("/metrics", (c) => {
 monitoringRoutes.get("/api/metrics", (c) => {
   const monitoring = getMonitoringService();
   const registry = monitoring.getMetrics();
-  
+
   const summary = {
     counters: Array.from(registry.counters.values()),
     gauges: Array.from(registry.gauges.values()),
@@ -76,7 +76,7 @@ monitoringRoutes.get("/api/metrics", (c) => {
       quantiles: Array.from(s.quantiles.entries()).map(([q, v]) => ({ q, v })),
     })),
   };
-  
+
   return c.json(summary);
 });
 
@@ -86,7 +86,7 @@ monitoringRoutes.get("/api/performance", (c) => {
   const monitoring = getMonitoringService();
   const history = monitoring.getPerformanceHistory();
   const swarmMetrics = monitoring.getSwarmMetrics();
-  
+
   return c.json({
     current: {
       memoryUsage: history.length > 0 ? history[history.length - 1] : null,
@@ -121,12 +121,12 @@ monitoringRoutes.post("/api/alerts/rules", async (c) => {
       createdAt: Date.now(),
       triggerCount: 0,
     };
-    
+
     const monitoring = getMonitoringService();
     monitoring.addAlertRule(rule);
-    
+
     return c.json({ success: true, rule }, 201);
-  } catch (error) {
+  } catch {
     return c.json({ error: "Invalid request body" }, 400);
   }
 });
@@ -135,12 +135,12 @@ monitoringRoutes.put("/api/alerts/rules/:id", async (c) => {
   try {
     const id = c.req.param("id");
     const body = await c.req.json();
-    
+
     const monitoring = getMonitoringService();
     monitoring.updateAlertRule(id, body);
-    
+
     return c.json({ success: true });
-  } catch (error) {
+  } catch {
     return c.json({ error: "Rule not found" }, 404);
   }
 });
@@ -177,12 +177,12 @@ monitoringRoutes.post("/api/alerts/channels", async (c) => {
       config: body.config || {},
       enabled: body.enabled !== false,
     };
-    
+
     const monitoring = getMonitoringService();
     monitoring.addAlertChannel(channel);
-    
+
     return c.json({ success: true, channel }, 201);
-  } catch (error) {
+  } catch {
     return c.json({ error: "Invalid request body" }, 400);
   }
 });
@@ -200,11 +200,11 @@ monitoringRoutes.get("/api/traces/:traceId", (c) => {
   const traceId = c.req.param("traceId");
   const monitoring = getMonitoringService();
   const trace = monitoring.getTrace(traceId);
-  
+
   if (!trace) {
     return c.json({ error: "Trace not found" }, 404);
   }
-  
+
   return c.json({ trace });
 });
 
@@ -232,7 +232,7 @@ monitoringRoutes.put("/api/config", async (c) => {
     const body = await c.req.json();
     Object.assign(monitoringState, body);
     return c.json(monitoringState);
-  } catch (error) {
+  } catch {
     return c.json({ error: "Invalid request body" }, 400);
   }
 });

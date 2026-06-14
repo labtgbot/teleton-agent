@@ -1,5 +1,5 @@
 import React from 'react';
-import { ConsciousnessLevel } from '../../../types/consciousness';
+import { ConsciousnessLevel } from '../../../types/consciousness.js';
 import './ConsciousnessIndicator.css';
 
 interface ConsciousnessIndicatorProps {

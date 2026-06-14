@@ -37,6 +37,14 @@ export function createExecRunExecutor(
     const { command } = params;
     const { timeout, max_output } = execConfig.limits;
 
+    if (execConfig.mode === "yolo") {
+      return {
+        success: false,
+        error:
+          "YOLO exec mode is disabled for security. Use 'allowlist' mode with explicit command_allowlist instead. See issue #10 (CWE-78).",
+      };
+    }
+
     if (execConfig.mode === "allowlist") {
       if (!isCommandAllowed(command, execConfig.command_allowlist)) {
         return {
@@ -44,15 +52,8 @@ export function createExecRunExecutor(
           error: `Command not permitted. Allowed prefixes: ${execConfig.command_allowlist.length > 0 ? execConfig.command_allowlist.join(", ") : "(none configured)"}`,
         };
       }
-    } else if (execConfig.mode === "yolo") {
-      // Disallow yolo mode for security reasons
-      return {
-        success: false,
-        error: "Exec mode 'yolo' is disabled due to security concerns. Use 'allowlist' mode with explicit commands."
-      };
     }
 
-    const truncated = false;
     let auditId: number | undefined;
     if (execConfig.audit.log_commands) {
       auditId = insertAuditEntry(db, {

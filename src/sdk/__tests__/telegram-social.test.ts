@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createTelegramSocialSDK } from "../telegram-social.js";
 import { PluginSDKError } from "@teleton-agent/sdk";
 import { Api } from "telegram";
+
+// Cross-platform temp path that passes sendStory's allowedPrefixes check
+const TMP_FILE = (name: string) => join(tmpdir(), name);
 
 // ─── GramJS mock ────────────────────────────────────────────────
 vi.mock("telegram", () => {
@@ -128,7 +133,7 @@ describe("createTelegramSocialSDK", () => {
       ["getMyGifts", () => sdk.getMyGifts()],
       ["getResaleGifts", () => sdk.getResaleGifts()],
       ["buyResaleGift", () => sdk.buyResaleGift("gift1")],
-      ["sendStory", () => sdk.sendStory("/tmp/img.jpg")],
+      ["sendStory", () => sdk.sendStory(TMP_FILE("img.jpg"))],
     ];
 
     for (const [name, call] of methodCalls) {
@@ -935,7 +940,7 @@ describe("createTelegramSocialSDK", () => {
         })
       );
 
-      const result = await sdk.sendStory("/tmp/image.jpg", { caption: "My story" });
+      const result = await sdk.sendStory(TMP_FILE("image.jpg"), { caption: "My story" });
 
       expect(mockGramJsClient.uploadFile).toHaveBeenCalledOnce();
       expect(mockGramJsClient.invoke).toHaveBeenCalledOnce();
@@ -950,7 +955,7 @@ describe("createTelegramSocialSDK", () => {
         })
       );
 
-      const result = await sdk.sendStory("/tmp/clip.mp4");
+      const result = await sdk.sendStory(TMP_FILE("clip.mp4"));
 
       expect(result).toBe(88);
       // The invoke call should contain InputMediaUploadedDocument for video
@@ -966,7 +971,7 @@ describe("createTelegramSocialSDK", () => {
         })
       );
 
-      await sdk.sendStory("/tmp/photo.png");
+      await sdk.sendStory(TMP_FILE("photo.png"));
 
       const invokeArg = mockGramJsClient.invoke.mock.calls[0][0];
       expect(invokeArg.media._).toBe("InputMediaUploadedPhoto");
@@ -976,14 +981,14 @@ describe("createTelegramSocialSDK", () => {
       mockGramJsClient.uploadFile.mockResolvedValue({ _: "InputFile" });
       mockGramJsClient.invoke.mockResolvedValue(new (Api.Updates as any)({ updates: [] }));
 
-      const result = await sdk.sendStory("/tmp/img.jpg");
+      const result = await sdk.sendStory(TMP_FILE("img.jpg"));
       expect(result).toBeNull();
     });
 
     it("wraps errors", async () => {
       mockGramJsClient.uploadFile.mockRejectedValue(new Error("upload failed"));
 
-      await expect(sdk.sendStory("/tmp/img.jpg")).rejects.toMatchObject({
+      await expect(sdk.sendStory(TMP_FILE("img.jpg"))).rejects.toMatchObject({
         code: "OPERATION_FAILED",
       });
     });

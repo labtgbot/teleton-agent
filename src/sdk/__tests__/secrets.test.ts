@@ -197,8 +197,11 @@ describe("writePluginSecret()", () => {
     const content = JSON.parse(readFileSync(filePath, "utf-8"));
     expect(content).toEqual({ API_KEY: "supersecret" });
 
-    const mode = statSync(filePath).mode & 0o777;
-    expect(mode).toBe(0o600);
+    // Windows does not support Unix file permissions in the same way
+    if (process.platform !== "win32") {
+      const mode = statSync(filePath).mode & 0o777;
+      expect(mode).toBe(0o600);
+    }
   });
 
   it("merges with existing secrets", () => {

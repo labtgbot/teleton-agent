@@ -206,6 +206,42 @@ export function getLogLevel(): string {
   return rootLogger.level;
 }
 
+// ── Logger class (for autonomous module compat) ────────────────────────
+
+/**
+ * Simple logger class used by autonomous modules.
+ * Wraps pino child logger with a class-based API.
+ */
+export class Logger {
+  private module: string;
+  private child: ReturnType<typeof createLogger>;
+
+  constructor(module: string) {
+    this.module = module;
+    this.child = createLogger(module);
+  }
+
+  info(message: string, meta?: Record<string, unknown>): void {
+    if (meta) this.child.info(meta, message);
+    else this.child.info(message);
+  }
+
+  warn(message: string, meta?: unknown): void {
+    if (meta !== undefined) this.child.warn(meta, message);
+    else this.child.warn(message);
+  }
+
+  error(message: string, meta?: unknown): void {
+    if (meta !== undefined) this.child.error(meta, message);
+    else this.child.error(message);
+  }
+
+  debug(message: string, meta?: Record<string, unknown>): void {
+    if (meta) this.child.debug(meta, message);
+    else this.child.debug(message);
+  }
+}
+
 // ── Backward compatibility ────────────────────────────────────────────
 
 let _verbose = rootLogger.isLevelEnabled("debug");

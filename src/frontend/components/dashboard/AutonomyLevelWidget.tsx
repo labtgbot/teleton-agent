@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AutonomyLevel, AUTONOMY_LEVELS } from '../../../types/autonomy';
+import { AutonomyLevel, AUTONOMY_LEVELS } from '../../../types/autonomy.js';
 import './AutonomyLevelWidget.css';
 
 interface AutonomyLevelWidgetProps {

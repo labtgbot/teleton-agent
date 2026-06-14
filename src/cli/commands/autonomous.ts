@@ -75,6 +75,10 @@ export async function autonomousCommand(
         priority: (options.priority as "low" | "medium" | "high" | "critical") ?? "medium",
       });
 
+      if (!task) {
+        console.error("Failed to create autonomous task");
+        break;
+      }
       console.log("Autonomous task created:");
       console.log(`  ID: ${task.id}`);
       console.log(`  Goal: ${task.goal}`);

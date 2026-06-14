@@ -1,6 +1,6 @@
 /**
  * Super-Agent Dashboard API Routes
- * 
+ *
  * Эндпоинты для Dashboard Супер-Агента:
  * - GET /api/super-agent/status — общий статус (автономность, сознание, эмоции)
  * - PUT /api/super-agent/autonomy — изменение уровня автономности
@@ -21,26 +21,44 @@ import type { WebUIServerDeps, APIResponse } from "../types.js";
 import { getErrorMessage } from "../../utils/errors.js";
 import { getAutonomyManager, type AutonomyLevel } from "../../autonomous/autonomy-levels.js";
 import { eqModule } from "../../autonomous/emotional-intelligence.js";
-import { DaoIntegrationModule } from "../../autonomous/dao-integration.js";
+
+// Local types for accessing swarm internals via unknown cast
+interface SwarmAgentView {
+  id: string;
+  role: string;
+  status: string;
+  currentTask?: { id: string };
+}
+interface SwarmProposalView {
+  id: string;
+  title: string;
+  description: string;
+  proposer: string;
+  status: string;
+  votes?: string[];
+  createdAt: number;
+  expiresAt: number;
+  requiredConsensus: string;
+}
 
 export function createSuperAgentRoutes(deps: WebUIServerDeps) {
   const app = new Hono();
   const autonomyManager = getAutonomyManager();
 
   // ── Status Endpoint ────────────────────────────────────────────────────
-  
+
   // GET /api/super-agent/status
   app.get("/status", (c) => {
     try {
       const autonomyMetrics = autonomyManager.getMetrics();
       const agentMood = eqModule.getAgentMood();
-      
+
       // Определяем активный уровень сознания на основе текущей задачи
-      const consciousnessLevel = deps.autonomousManager?.getCurrentConsciousnessLevel() ?? 'REACTIVE';
-      
+      const consciousnessLevel = autonomyManager.getCurrentLevel();
+
       const data = {
         autonomy: {
-          currentLevel: autonomyManager.getLevel(),
+          currentLevel: autonomyManager.getCurrentLevel(),
           metrics: autonomyMetrics,
           pendingApprovals: autonomyManager.getPendingApprovals().length,
         },
@@ -57,7 +75,7 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
         },
         timestamp: Date.now(),
       };
-      
+
       const response: APIResponse<typeof data> = { success: true, data };
       return c.json(response);
     } catch (err) {
@@ -67,26 +85,26 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
   });
 
   // ── Autonomy Level Management ─────────────────────────────────────────
-  
+
   // PUT /api/super-agent/autonomy
   app.put("/autonomy", async (c) => {
     try {
       const body = await c.req.json<{ level: AutonomyLevel; reason?: string }>();
-      
+
       if (!body.level) {
         return c.json({ success: false, error: "level is required" } as APIResponse, 400);
       }
-      
-      const previousLevel = autonomyManager.getLevel();
+
+      const previousLevel = autonomyManager.getCurrentLevel();
       autonomyManager.setLevel(body.level, body.reason || "User requested via dashboard");
-      
+
       const data = {
         previousLevel,
         newLevel: body.level,
         reason: body.reason,
         timestamp: Date.now(),
       };
-      
+
       const response: APIResponse<typeof data> = { success: true, data };
       return c.json(response);
     } catch (err) {
@@ -98,16 +116,16 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
   // GET /api/super-agent/autonomy — текущий уровень
   app.get("/autonomy", (c) => {
     try {
-      const currentLevel = autonomyManager.getLevel();
+      const currentLevel = autonomyManager.getCurrentLevel();
       const metrics = autonomyManager.getMetrics();
       const pendingApprovals = autonomyManager.getPendingApprovals();
-      
+
       const data = {
         currentLevel,
         metrics,
         pendingApprovals,
       };
-      
+
       const response: APIResponse<typeof data> = { success: true, data };
       return c.json(response);
     } catch (err) {
@@ -117,26 +135,26 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
   });
 
   // ── Swarm Status ───────────────────────────────────────────────────────
-  
+
   // GET /api/super-agent/swarm
   app.get("/swarm", (c) => {
     try {
       // Если swarm coordinator доступен через deps
       const swarm = deps.swarmCoordinator;
-      
+
       if (!swarm) {
         // Возвращаем mock данные если swarm не инициализирован
         const mockData = {
           enabled: true,
           agents: [
-            { id: 'agent_orchestrator', role: 'orchestrator', status: 'idle', currentTask: null },
-            { id: 'agent_researcher', role: 'researcher', status: 'busy', currentTask: 'task_123' },
-            { id: 'agent_planner', role: 'planner', status: 'idle', currentTask: null },
-            { id: 'agent_executor', role: 'executor', status: 'busy', currentTask: 'task_124' },
-            { id: 'agent_critic', role: 'critic', status: 'waiting', currentTask: null },
-            { id: 'agent_security', role: 'security', status: 'idle', currentTask: null },
-            { id: 'agent_communicator', role: 'communicator', status: 'idle', currentTask: null },
-            { id: 'agent_learner', role: 'learner', status: 'busy', currentTask: 'task_125' },
+            { id: "agent_orchestrator", role: "orchestrator", status: "idle", currentTask: null },
+            { id: "agent_researcher", role: "researcher", status: "busy", currentTask: "task_123" },
+            { id: "agent_planner", role: "planner", status: "idle", currentTask: null },
+            { id: "agent_executor", role: "executor", status: "busy", currentTask: "task_124" },
+            { id: "agent_critic", role: "critic", status: "waiting", currentTask: null },
+            { id: "agent_security", role: "security", status: "idle", currentTask: null },
+            { id: "agent_communicator", role: "communicator", status: "idle", currentTask: null },
+            { id: "agent_learner", role: "learner", status: "busy", currentTask: "task_125" },
           ],
           activeProposals: 0,
           metrics: {
@@ -149,23 +167,28 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
         const response: APIResponse<typeof mockData> = { success: true, data: mockData };
         return c.json(response);
       }
-      
+
       const metrics = swarm.getMetrics();
-      const agents = Array.from((swarm as any).agents?.values() || []).map((a: any) => ({
+      const agents = Array.from(
+        (swarm as unknown as { agents?: Map<string, SwarmAgentView> }).agents?.values() || []
+      ).map((a) => ({
         id: a.id,
         role: a.role,
         status: a.status,
         currentTask: a.currentTask ? a.currentTask.id : null,
       }));
-      
+
       const data = {
         enabled: true,
         agents,
-        activeProposals: Array.from((swarm as any).proposals?.values() || [])
-          .filter((p: any) => p.status === 'active').length,
+        activeProposals: Array.from(
+          (
+            swarm as unknown as { proposals?: Map<string, SwarmProposalView> }
+          ).proposals?.values() || []
+        ).filter((p) => p.status === "active").length,
         metrics,
       };
-      
+
       const response: APIResponse<typeof data> = { success: true, data };
       return c.json(response);
     } catch (err) {
@@ -178,7 +201,7 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
   app.get("/swarm/debates", (c) => {
     try {
       const swarm = deps.swarmCoordinator;
-      
+
       if (!swarm) {
         const mockData = {
           activeDebates: [],
@@ -187,11 +210,14 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
         const response: APIResponse<typeof mockData> = { success: true, data: mockData };
         return c.json(response);
       }
-      
+
+      const proposalMap = (swarm as unknown as { proposals?: Map<string, SwarmProposalView> })
+        .proposals;
+
       // Получаем активные proposals
-      const proposals = Array.from((swarm as any).proposals?.values() || [])
-        .filter((p: any) => ['active', 'voting', 'debate'].includes(p.status))
-        .map((p: any) => ({
+      const proposals = Array.from(proposalMap?.values() || [])
+        .filter((p) => ["active", "voting", "debate"].includes(p.status))
+        .map((p) => ({
           id: p.id,
           title: p.title,
           description: p.description,
@@ -201,24 +227,24 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
           createdAt: p.createdAt,
           expiresAt: p.expiresAt,
         }));
-      
+
       // Получаем последние завершенные голосования
-      const recentConsensus = Array.from((swarm as any).proposals?.values() || [])
-        .filter((p: any) => ['accepted', 'rejected'].includes(p.status))
+      const recentConsensus = Array.from(proposalMap?.values() || [])
+        .filter((p) => ["accepted", "rejected"].includes(p.status))
         .slice(-10)
-        .map((p: any) => ({
+        .map((p) => ({
           id: p.id,
           title: p.title,
           result: p.status,
           consensusMethod: p.requiredConsensus,
           timestamp: p.createdAt,
         }));
-      
+
       const data = {
         activeDebates: proposals,
         recentConsensus,
       };
-      
+
       const response: APIResponse<typeof data> = { success: true, data };
       return c.json(response);
     } catch (err) {
@@ -228,30 +254,33 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
   });
 
   // ── Memory Management ──────────────────────────────────────────────────
-  
+
   // GET /api/super-agent/memory/stats
   app.get("/memory/stats", (c) => {
     try {
       const db = deps.memory.db;
-      
+
       // Эпизодическая память
-      const episodicCount = (
-        db.prepare("SELECT COUNT(*) as count FROM episodic_memories").get() as { count: number }
-      )?.count ?? 0;
-      
+      const episodicCount =
+        (db.prepare("SELECT COUNT(*) as count FROM episodic_memories").get() as { count: number })
+          ?.count ?? 0;
+
       // Семантическая память (граф знаний)
-      const semanticEntities = (
-        db.prepare("SELECT COUNT(*) as count FROM semantic_entities").get() as { count: number }
-      )?.count ?? 0;
-      const semanticRelationships = (
-        db.prepare("SELECT COUNT(*) as count FROM semantic_relationships").get() as { count: number }
-      )?.count ?? 0;
-      
+      const semanticEntities =
+        (db.prepare("SELECT COUNT(*) as count FROM semantic_entities").get() as { count: number })
+          ?.count ?? 0;
+      const semanticRelationships =
+        (
+          db.prepare("SELECT COUNT(*) as count FROM semantic_relationships").get() as {
+            count: number;
+          }
+        )?.count ?? 0;
+
       // Процедурная память (навыки)
-      const proceduralSkills = (
-        db.prepare("SELECT COUNT(*) as count FROM procedural_skills").get() as { count: number }
-      )?.count ?? 0;
-      
+      const proceduralSkills =
+        (db.prepare("SELECT COUNT(*) as count FROM procedural_skills").get() as { count: number })
+          ?.count ?? 0;
+
       const data = {
         episodic: {
           events: episodicCount,
@@ -264,7 +293,7 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
           skills: proceduralSkills,
         },
       };
-      
+
       const response: APIResponse<typeof data> = { success: true, data };
       return c.json(response);
     } catch (err) {
@@ -278,38 +307,40 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
     try {
       const db = deps.memory.db;
       const limit = parseInt(c.req.query("limit") || "100", 10);
-      
+
       // Получаем сущности и связи для визуализации графа
       const entities = db
         .prepare("SELECT id, name, type, metadata FROM semantic_entities LIMIT ?")
         .all(limit) as Array<{ id: string; name: string; type: string; metadata: string | null }>;
-      
+
       const relationships = db
-        .prepare(`
+        .prepare(
+          `
           SELECT sr.id, sr.source_id, sr.target_id, sr.type, sr.weight, se1.name as source_name, se2.name as target_name
           FROM semantic_relationships sr
           JOIN semantic_entities se1 ON sr.source_id = se1.id
           JOIN semantic_entities se2 ON sr.target_id = se2.id
           LIMIT ?
-        `)
+        `
+        )
         .all(limit) as Array<{
-          id: string;
-          source_id: string;
-          target_id: string;
-          type: string;
-          weight: number;
-          source_name: string;
-          target_name: string;
-        }>;
-      
+        id: string;
+        source_id: string;
+        target_id: string;
+        type: string;
+        weight: number;
+        source_name: string;
+        target_name: string;
+      }>;
+
       const data = {
-        nodes: entities.map(e => ({
+        nodes: entities.map((e) => ({
           id: e.id,
           label: e.name,
           type: e.type,
           metadata: e.metadata ? JSON.parse(e.metadata) : null,
         })),
-        edges: relationships.map(r => ({
+        edges: relationships.map((r) => ({
           id: r.id,
           source: r.source_id,
           target: r.target_id,
@@ -317,7 +348,7 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
           weight: r.weight,
         })),
       };
-      
+
       const response: APIResponse<typeof data> = { success: true, data };
       return c.json(response);
     } catch (err) {
@@ -332,26 +363,28 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
       const db = deps.memory.db;
       const limit = parseInt(c.req.query("limit") || "50", 10);
       const offset = parseInt(c.req.query("offset") || "0", 10);
-      
+
       const events = db
-        .prepare(`
+        .prepare(
+          `
           SELECT id, event_type, description, emotional_weight, importance, tags, timestamp
           FROM episodic_memories
           ORDER BY timestamp DESC
           LIMIT ? OFFSET ?
-        `)
+        `
+        )
         .all(limit, offset) as Array<{
-          id: string;
-          event_type: string;
-          description: string;
-          emotional_weight: number;
-          importance: number;
-          tags: string;
-          timestamp: number;
-        }>;
-      
+        id: string;
+        event_type: string;
+        description: string;
+        emotional_weight: number;
+        importance: number;
+        tags: string;
+        timestamp: number;
+      }>;
+
       const data = {
-        events: events.map(e => ({
+        events: events.map((e) => ({
           id: e.id,
           type: e.event_type,
           description: e.description,
@@ -360,9 +393,11 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
           tags: e.tags ? JSON.parse(e.tags) : [],
           timestamp: e.timestamp,
         })),
-        total: (db.prepare("SELECT COUNT(*) as count FROM episodic_memories").get() as { count: number }).count,
+        total: (
+          db.prepare("SELECT COUNT(*) as count FROM episodic_memories").get() as { count: number }
+        ).count,
       };
-      
+
       const response: APIResponse<typeof data> = { success: true, data };
       return c.json(response);
     } catch (err) {
@@ -375,26 +410,28 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
   app.get("/memory/skills", (c) => {
     try {
       const db = deps.memory.db;
-      
+
       const skills = db
-        .prepare(`
+        .prepare(
+          `
           SELECT id, name, category, steps, success_rate, executions_count, last_executed
           FROM procedural_skills
           ORDER BY success_rate DESC, executions_count DESC
           LIMIT 100
-        `)
+        `
+        )
         .all() as Array<{
-          id: string;
-          name: string;
-          category: string;
-          steps: string;
-          success_rate: number;
-          executions_count: number;
-          last_executed: number;
-        }>;
-      
+        id: string;
+        name: string;
+        category: string;
+        steps: string;
+        success_rate: number;
+        executions_count: number;
+        last_executed: number;
+      }>;
+
       const data = {
-        skills: skills.map(s => ({
+        skills: skills.map((s) => ({
           id: s.id,
           name: s.name,
           category: s.category,
@@ -404,7 +441,7 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
           lastExecuted: s.last_executed,
         })),
       };
-      
+
       const response: APIResponse<typeof data> = { success: true, data };
       return c.json(response);
     } catch (err) {
@@ -414,27 +451,36 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
   });
 
   // ── DAO & Governance ───────────────────────────────────────────────────
-  
+
   // GET /api/super-agent/dao/proposals
   app.get("/dao/proposals", async (c) => {
     try {
-      // Используем DAO integration module
-      const daoModule = new DaoIntegrationModule(
-        (deps as any).tonClient,
-        (deps as any).walletAddress || "EQC...mock"
-      );
-      
-      // Получаем активные предложения (mock данные для демонстрации)
-      const proposals = await daoModule.getActiveProposals([
-        "EQC...dao1",
-        "EQC...dao2"
-      ]);
-      
+      // DAO integration — return mock data (tonClient not available in WebUIServerDeps)
+      const proposals = [
+        {
+          id: "prop_001",
+          title: "Proposal: Increase swarm size",
+          description: "Expand agent swarm from 8 to 16 agents",
+          status: "active",
+          votes: { yes: 5, no: 2 },
+        },
+        {
+          id: "prop_002",
+          title: "Proposal: Update constitution",
+          description: "Amend principle 3 to allow autonomous tool installation",
+          status: "active",
+          votes: { yes: 3, no: 4 },
+        },
+      ];
+
       const data = {
         proposals,
-        summary: daoModule.getDaoActivitySummary(),
+        summary: {
+          totalProposals: proposals.length,
+          activeProposals: proposals.filter((p) => p.status === "active").length,
+        },
       };
-      
+
       const response: APIResponse<typeof data> = { success: true, data };
       return c.json(response);
     } catch (err) {
@@ -448,14 +494,17 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
     try {
       const body = await c.req.json<{
         proposalId: string;
-        vote: 'for' | 'against' | 'abstain';
+        vote: "for" | "against" | "abstain";
         rationale?: string;
       }>();
-      
+
       if (!body.proposalId || !body.vote) {
-        return c.json({ success: false, error: "proposalId and vote are required" } as APIResponse, 400);
+        return c.json(
+          { success: false, error: "proposalId and vote are required" } as APIResponse,
+          400
+        );
       }
-      
+
       // В реальной реализации здесь будет отправка транзакции
       const data = {
         success: true,
@@ -464,7 +513,7 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
         rationale: body.rationale,
         txHash: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       };
-      
+
       const response: APIResponse<typeof data> = { success: true, data };
       return c.json(response);
     } catch (err) {
@@ -474,42 +523,49 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
   });
 
   // ── Constitution & Security ────────────────────────────────────────────
-  
+
   // GET /api/super-agent/constitution
   app.get("/constitution", (c) => {
     try {
       const db = deps.memory.db;
-      
+
       // Получаем настройки конституции из конфига или БД
-      const configRow = db.prepare("SELECT value FROM config WHERE key = 'constitution'").get() as { value: string } | undefined;
-      
-      const constitution = configRow 
+      const configRow = db.prepare("SELECT value FROM config WHERE key = 'constitution'").get() as
+        | { value: string }
+        | undefined;
+
+      const constitution = configRow
         ? JSON.parse(configRow.value)
         : {
             enabled: true,
             strictMode: true,
             principles: [
-              { id: 'non_maleficence', name: 'Non-Maleficence', priority: 1, enabled: true },
-              { id: 'privacy', name: 'Privacy & Confidentiality', priority: 1, enabled: true },
-              { id: 'goal_achievement', name: 'Goal Achievement', priority: 2, enabled: true },
-              { id: 'self_preservation', name: 'Self-Preservation', priority: 3, enabled: true },
-              { id: 'continuous_improvement', name: 'Continuous Improvement', priority: 4, enabled: true },
+              { id: "non_maleficence", name: "Non-Maleficence", priority: 1, enabled: true },
+              { id: "privacy", name: "Privacy & Confidentiality", priority: 1, enabled: true },
+              { id: "goal_achievement", name: "Goal Achievement", priority: 2, enabled: true },
+              { id: "self_preservation", name: "Self-Preservation", priority: 3, enabled: true },
+              {
+                id: "continuous_improvement",
+                name: "Continuous Improvement",
+                priority: 4,
+                enabled: true,
+              },
             ],
             safetyLimits: {
               maxTONTransaction: 10,
               maxDailySpending: 50,
-              restrictedTools: ['contract:deploy', 'system:exec'],
+              restrictedTools: ["contract:deploy", "system:exec"],
             },
           };
-      
+
       const data = {
         constitution,
         autonomyLimits: {
-          currentLevel: autonomyManager.getLevel(),
-          ...AUTONOMY_LIMITS[autonomyManager.getLevel()],
+          currentLevel: autonomyManager.getCurrentLevel(),
+          ...AUTONOMY_LIMITS[autonomyManager.getCurrentLevel()],
         },
       };
-      
+
       const response: APIResponse<typeof data> = { success: true, data };
       return c.json(response);
     } catch (err) {
@@ -522,37 +578,41 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
   app.put("/constitution", async (c) => {
     try {
       const body = await c.req.json<{
-        constitution?: any;
+        constitution?: Record<string, unknown>;
         safetyLimits?: {
           maxTONTransaction?: number;
           maxDailySpending?: number;
           restrictedTools?: string[];
         };
       }>();
-      
+
       const db = deps.memory.db;
-      
+
       // Сохраняем обновленную конституцию
       if (body.constitution) {
-        db.prepare(`
+        db.prepare(
+          `
           INSERT OR REPLACE INTO config (key, value, updated_at)
           VALUES ('constitution', ?, ?)
-        `).run(JSON.stringify(body.constitution), Date.now());
+        `
+        ).run(JSON.stringify(body.constitution), Date.now());
       }
-      
+
       // Обновляем лимиты безопасности
       if (body.safetyLimits) {
-        db.prepare(`
+        db.prepare(
+          `
           INSERT OR REPLACE INTO config (key, value, updated_at)
           VALUES ('safety_limits', ?, ?)
-        `).run(JSON.stringify(body.safetyLimits), Date.now());
+        `
+        ).run(JSON.stringify(body.safetyLimits), Date.now());
       }
-      
+
       const data = {
         success: true,
         timestamp: Date.now(),
       };
-      
+
       const response: APIResponse<typeof data> = { success: true, data };
       return c.json(response);
     } catch (err) {
@@ -567,12 +627,12 @@ export function createSuperAgentRoutes(deps: WebUIServerDeps) {
 // Helper функции
 function getConsciousnessDescription(level: string): string {
   const descriptions: Record<string, string> = {
-    REACTIVE: 'Быстрые инстинктивные ответы на простые запросы',
-    TACTICAL: 'Краткосрочное планирование многошаговых задач',
-    STRATEGIC: 'Долгосрочное стратегическое выравнивание целей',
-    META_COGNITION: 'Самоанализ и оптимизация процессов обучения',
+    REACTIVE: "Быстрые инстинктивные ответы на простые запросы",
+    TACTICAL: "Краткосрочное планирование многошаговых задач",
+    STRATEGIC: "Долгосрочное стратегическое выравнивание целей",
+    META_COGNITION: "Самоанализ и оптимизация процессов обучения",
   };
-  return descriptions[level] || 'Unknown consciousness level';
+  return descriptions[level] || "Unknown consciousness level";
 }
 
 const AUTONOMY_LIMITS: Record<string, { maxTONTransaction: number; maxDailySpending: number }> = {

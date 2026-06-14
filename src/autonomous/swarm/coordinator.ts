@@ -4,21 +4,19 @@
  * Фаза 4: Agent Swarm Architecture
  */
 
-import { v4 as uuidv4 } from 'uuid';
-import {
-  AgentRole,
-  AgentStatus,
+import { randomUUID } from "crypto";
+import { AgentRole, AgentStatus, ConsensusMethod } from "../../types/swarm/agent-swarm.js";
+import type {
   AgentMessage,
   AgentVote,
   Proposal,
-  ConsensusMethod,
   ConsensusResult,
   AgentConfig,
   SwarmConfig,
   SwarmMetrics,
   AgentTask,
-} from '../../types/swarm/agent-swarm';
-import { Logger } from '../../utils/logger';
+} from "../../types/swarm/agent-swarm.js";
+import { Logger } from "../../utils/logger.js";
 
 interface AgentInstance {
   id: string;
@@ -48,11 +46,11 @@ export class SwarmCoordinator {
       quorumPercentage: 60,
       messageQueueSize: 1000,
       enableLogging: true,
-      logLevel: 'info',
+      logLevel: "info",
       ...config,
     };
 
-    this.logger = new Logger('SwarmCoordinator');
+    this.logger = new Logger("SwarmCoordinator");
     this.initializeAgents();
   }
 
@@ -61,14 +59,62 @@ export class SwarmCoordinator {
    */
   private getDefaultAgentConfigs(): AgentConfig[] {
     return [
-      { role: AgentRole.ORCHESTRATOR, priority: 10, maxConcurrentTasks: 5 },
-      { role: AgentRole.RESEARCHER, priority: 7, maxConcurrentTasks: 3 },
-      { role: AgentRole.PLANNER, priority: 8, maxConcurrentTasks: 2 },
-      { role: AgentRole.EXECUTOR, priority: 6, maxConcurrentTasks: 5 },
-      { role: AgentRole.CRITIC, priority: 9, maxConcurrentTasks: 3 },
-      { role: AgentRole.SECURITY, priority: 10, maxConcurrentTasks: 10 },
-      { role: AgentRole.COMMUNICATOR, priority: 7, maxConcurrentTasks: 5 },
-      { role: AgentRole.LEARNER, priority: 5, maxConcurrentTasks: 2 },
+      {
+        role: AgentRole.ORCHESTRATOR,
+        enabled: true,
+        priority: 10,
+        maxConcurrentTasks: 5,
+        temperature: 0.7,
+      },
+      {
+        role: AgentRole.RESEARCHER,
+        enabled: true,
+        priority: 7,
+        maxConcurrentTasks: 3,
+        temperature: 0.7,
+      },
+      {
+        role: AgentRole.PLANNER,
+        enabled: true,
+        priority: 8,
+        maxConcurrentTasks: 2,
+        temperature: 0.7,
+      },
+      {
+        role: AgentRole.EXECUTOR,
+        enabled: true,
+        priority: 6,
+        maxConcurrentTasks: 5,
+        temperature: 0.7,
+      },
+      {
+        role: AgentRole.CRITIC,
+        enabled: true,
+        priority: 9,
+        maxConcurrentTasks: 3,
+        temperature: 0.7,
+      },
+      {
+        role: AgentRole.SECURITY,
+        enabled: true,
+        priority: 10,
+        maxConcurrentTasks: 10,
+        temperature: 0.7,
+      },
+      {
+        role: AgentRole.COMMUNICATOR,
+        enabled: true,
+        priority: 7,
+        maxConcurrentTasks: 5,
+        temperature: 0.7,
+      },
+      {
+        role: AgentRole.LEARNER,
+        enabled: true,
+        priority: 5,
+        maxConcurrentTasks: 2,
+        temperature: 0.7,
+      },
     ];
   }
 
@@ -76,11 +122,11 @@ export class SwarmCoordinator {
    * Инициализация агентов
    */
   private initializeAgents(): void {
-    this.config.agents.forEach(agentConfig => {
+    this.config.agents.forEach((agentConfig) => {
       if (!agentConfig.enabled) return;
 
       const agent: AgentInstance = {
-        id: uuidv4(),
+        id: randomUUID(),
         role: agentConfig.role,
         config: agentConfig,
         status: AgentStatus.IDLE,
@@ -99,8 +145,8 @@ export class SwarmCoordinator {
    */
   sendMessage(
     from: AgentRole,
-    to: AgentRole | 'all',
-    type: AgentMessage['type'],
+    to: AgentRole | "all",
+    type: AgentMessage["type"],
     content: Record<string, unknown>,
     options?: {
       priority?: number;
@@ -109,7 +155,7 @@ export class SwarmCoordinator {
     }
   ): AgentMessage {
     const message: AgentMessage = {
-      id: uuidv4(),
+      id: randomUUID(),
       from,
       to,
       type,
@@ -118,7 +164,7 @@ export class SwarmCoordinator {
       priority: options?.priority || 5,
       requiresResponse: options?.requiresResponse || false,
       timeout: options?.timeout,
-      threadId: uuidv4(),
+      threadId: randomUUID(),
     };
 
     // Ограничение размера очереди
@@ -144,18 +190,18 @@ export class SwarmCoordinator {
     proposer: AgentRole,
     title: string,
     description: string,
-    type: Proposal['type'],
+    type: Proposal["type"],
     content: Record<string, unknown>,
     consensusMethod: ConsensusMethod = ConsensusMethod.MAJORITY_VOTE
   ): Proposal {
     const proposal: Proposal = {
-      id: uuidv4(),
+      id: randomUUID(),
       title,
       description,
       proposer,
       type,
       content,
-      status: 'active',
+      status: "active",
       votes: [],
       createdAt: Date.now(),
       expiresAt: Date.now() + this.config.consensusTimeout,
@@ -169,8 +215,8 @@ export class SwarmCoordinator {
     // Уведомление всех агентов о новом предложении
     this.sendMessage(
       proposer,
-      'all',
-      'proposal',
+      "all",
+      "proposal",
       {
         proposalId: proposal.id,
         title: proposal.title,
@@ -191,7 +237,7 @@ export class SwarmCoordinator {
   vote(
     agentId: string,
     proposalId: string,
-    vote: 'yes' | 'no' | 'abstain',
+    vote: "yes" | "no" | "abstain",
     confidence: number,
     rationale?: string
   ): AgentVote {
@@ -206,7 +252,7 @@ export class SwarmCoordinator {
       throw new Error(`Proposal ${proposalId} not found`);
     }
 
-    if (proposal.status !== 'active' && proposal.status !== 'voting') {
+    if (proposal.status !== "active" && proposal.status !== "voting") {
       throw new Error(`Proposal ${proposalId} is not accepting votes`);
     }
 
@@ -265,8 +311,8 @@ export class SwarmCoordinator {
       method: proposal.requiredConsensus,
       achieved: false,
       votes,
-      result: 'accepted',
-      summary: '',
+      result: "accepted",
+      summary: "",
       timestamp: Date.now(),
     };
 
@@ -298,16 +344,16 @@ export class SwarmCoordinator {
    * Метод большинства голосов
    */
   private applyMajorityVote(votes: AgentVote[], result: ConsensusResult): void {
-    const yesVotes = votes.filter(v => v.vote === 'yes').length;
-    const noVotes = votes.filter(v => v.vote === 'no').length;
-    
+    const yesVotes = votes.filter((v) => v.vote === "yes").length;
+    const noVotes = votes.filter((v) => v.vote === "no").length;
+
     if (yesVotes > noVotes) {
       result.achieved = true;
-      result.result = 'accepted';
+      result.result = "accepted";
       result.summary = `Accepted by majority: ${yesVotes} yes, ${noVotes} no`;
     } else if (noVotes > yesVotes) {
       result.achieved = true;
-      result.result = 'rejected';
+      result.result = "rejected";
       result.summary = `Rejected by majority: ${noVotes} no, ${yesVotes} yes`;
     }
 
@@ -318,21 +364,17 @@ export class SwarmCoordinator {
    * Метод взвешенных голосов
    */
   private applyWeightedVote(votes: AgentVote[], result: ConsensusResult): void {
-    const yesWeight = votes
-      .filter(v => v.vote === 'yes')
-      .reduce((sum, v) => sum + v.weight, 0);
-    
-    const noWeight = votes
-      .filter(v => v.vote === 'no')
-      .reduce((sum, v) => sum + v.weight, 0);
+    const yesWeight = votes.filter((v) => v.vote === "yes").reduce((sum, v) => sum + v.weight, 0);
+
+    const noWeight = votes.filter((v) => v.vote === "no").reduce((sum, v) => sum + v.weight, 0);
 
     if (yesWeight > noWeight) {
       result.achieved = true;
-      result.result = 'accepted';
+      result.result = "accepted";
       result.summary = `Accepted by weighted vote: ${yesWeight.toFixed(2)} vs ${noWeight.toFixed(2)}`;
     } else if (noWeight > yesWeight) {
       result.achieved = true;
-      result.result = 'rejected';
+      result.result = "rejected";
       result.summary = `Rejected by weighted vote: ${noWeight.toFixed(2)} vs ${yesWeight.toFixed(2)}`;
     }
 
@@ -343,17 +385,17 @@ export class SwarmCoordinator {
    * Метод единогласия
    */
   private applyUnanimous(votes: AgentVote[], result: ConsensusResult): void {
-    const hasNo = votes.some(v => v.vote === 'no');
+    const hasNo = votes.some((v) => v.vote === "no");
     const allVoted = votes.length >= this.agents.size;
 
     if (allVoted && !hasNo) {
       result.achieved = true;
-      result.result = 'accepted';
-      result.summary = 'Accepted unanimously';
+      result.result = "accepted";
+      result.summary = "Accepted unanimously";
     } else if (hasNo) {
       result.achieved = true;
-      result.result = 'rejected';
-      result.summary = 'Rejected: not unanimous';
+      result.result = "rejected";
+      result.summary = "Rejected: not unanimous";
       this.recordDissentingOpinions(votes, result);
     }
   }
@@ -372,21 +414,17 @@ export class SwarmCoordinator {
   /**
    * Метод таймаута
    */
-  private applyTimeout(
-    proposal: Proposal,
-    votes: AgentVote[],
-    result: ConsensusResult
-  ): void {
+  private applyTimeout(proposal: Proposal, votes: AgentVote[], result: ConsensusResult): void {
     const isExpired = Date.now() >= proposal.expiresAt;
-    
+
     if (isExpired) {
-      const yesVotes = votes.filter(v => v.vote === 'yes').length;
-      const noVotes = votes.filter(v => v.vote === 'no').length;
-      
+      const yesVotes = votes.filter((v) => v.vote === "yes").length;
+      const noVotes = votes.filter((v) => v.vote === "no").length;
+
       result.achieved = true;
-      result.result = yesVotes >= noVotes ? 'accepted' : 'rejected';
+      result.result = yesVotes >= noVotes ? "accepted" : "rejected";
       result.summary = `Decision by timeout: ${yesVotes} yes, ${noVotes} no`;
-      
+
       this.recordDissentingOpinions(votes, result);
     }
   }
@@ -395,12 +433,12 @@ export class SwarmCoordinator {
    * Запись несогласных мнений
    */
   private recordDissentingOpinions(votes: AgentVote[], result: ConsensusResult): void {
-    const dissenting = votes.filter(v => v.vote === 'no' && v.rationale);
-    
+    const dissenting = votes.filter((v) => v.vote === "no" && v.rationale);
+
     if (dissenting.length > 0) {
-      result.dissentingOpinions = dissenting.map(v => ({
+      result.dissentingOpinions = dissenting.map((v) => ({
         agentRole: v.agentRole,
-        rationale: v.rationale!,
+        rationale: v.rationale ?? "",
       }));
     }
   }
@@ -412,24 +450,19 @@ export class SwarmCoordinator {
     const proposal = this.proposals.get(proposalId);
     if (!proposal) return;
 
-    proposal.status = consensus.result === 'accepted' ? 'accepted' : 'rejected';
-    
+    proposal.status = consensus.result === "accepted" ? "accepted" : "rejected";
+
     this.logger.info(`Proposal finalized: ${proposal.title} - ${consensus.result}`, {
       summary: consensus.summary,
       dissentingCount: consensus.dissentingOpinions?.length || 0,
     });
 
     // Уведомление о результате
-    this.sendMessage(
-      proposal.proposer,
-      'all',
-      'result',
-      {
-        proposalId,
-        result: consensus.result,
-        summary: consensus.summary,
-      }
-    );
+    this.sendMessage(proposal.proposer, "all", "result", {
+      proposalId,
+      result: consensus.result,
+      summary: consensus.summary,
+    });
   }
 
   /**
@@ -442,17 +475,17 @@ export class SwarmCoordinator {
     priority: number = 5
   ): AgentTask {
     const availableAgent = this.findAvailableAgent(role);
-    
+
     if (!availableAgent) {
       throw new Error(`No available agent for role: ${role}`);
     }
 
     const task: AgentTask = {
-      id: uuidv4(),
+      id: randomUUID(),
       assignedTo: role,
       description,
       input,
-      status: 'pending',
+      status: "pending",
       priority,
       createdAt: Date.now(),
     };
@@ -465,7 +498,7 @@ export class SwarmCoordinator {
     this.sendMessage(
       AgentRole.ORCHESTRATOR,
       role,
-      'request',
+      "request",
       { taskId: task.id, task },
       { priority }
     );
@@ -487,7 +520,7 @@ export class SwarmCoordinator {
       ) {
         // Проверка лимита задач
         const activeTasks = Array.from(this.tasks.values()).filter(
-          t => t.assignedTo === role && t.status === 'in_progress'
+          (t) => t.assignedTo === role && t.status === "in_progress"
         ).length;
 
         if (activeTasks < agent.config.maxConcurrentTasks) {
@@ -503,7 +536,7 @@ export class SwarmCoordinator {
    */
   updateTaskStatus(
     taskId: string,
-    status: AgentTask['status'],
+    status: AgentTask["status"],
     output?: Record<string, unknown>,
     error?: string
   ): void {
@@ -514,18 +547,16 @@ export class SwarmCoordinator {
     if (output) task.output = output;
     if (error) task.error = error;
 
-    if (status === 'completed' || status === 'failed') {
+    if (status === "completed" || status === "failed") {
       task.completedAt = Date.now();
-      
+
       // Освобождение агента
-      const agent = Array.from(this.agents.values()).find(
-        a => a.currentTask?.id === taskId
-      );
+      const agent = Array.from(this.agents.values()).find((a) => a.currentTask?.id === taskId);
       if (agent) {
         agent.status = AgentStatus.IDLE;
         agent.currentTask = undefined;
       }
-    } else if (status === 'in_progress') {
+    } else if (status === "in_progress") {
       task.startedAt = Date.now();
     }
 
@@ -544,11 +575,11 @@ export class SwarmCoordinator {
    * Уведомление слушателей о сообщении
    */
   private notifyMessageListeners(message: AgentMessage): void {
-    this.messageListeners.forEach(listener => {
+    this.messageListeners.forEach((listener) => {
       try {
         listener(message);
       } catch (error) {
-        this.logger.error('Error in message listener', error);
+        this.logger.error("Error in message listener", error);
       }
     });
   }
@@ -559,23 +590,26 @@ export class SwarmCoordinator {
   getMetrics(): SwarmMetrics {
     const agentsArray = Array.from(this.agents.values());
     const activeAgents = agentsArray.filter(
-      a => a.status !== AgentStatus.OFFLINE && a.status !== AgentStatus.ERROR
+      (a) => a.status !== AgentStatus.OFFLINE && a.status !== AgentStatus.ERROR
     ).length;
 
-    const completedTasks = Array.from(this.tasks.values()).filter(
-      t => t.status === 'completed'
-    );
-    const failedTasks = Array.from(this.tasks.values()).filter(
-      t => t.status === 'failed'
-    );
+    const completedTasks = Array.from(this.tasks.values()).filter((t) => t.status === "completed");
+    const failedTasks = Array.from(this.tasks.values()).filter((t) => t.status === "failed");
 
-    const byRole: SwarmMetrics['byRole'] = {} as any;
-    
-    Object.values(AgentRole).forEach(role => {
-      const roleTasks = completedTasks.filter(t => t.assignedTo === role);
-      const roleFailed = failedTasks.filter(t => t.assignedTo === role);
+    const byRole: SwarmMetrics["byRole"] = {} as Record<
+      AgentRole,
+      {
+        tasksCompleted: number;
+        successRate: number;
+        averageResponseTime: number;
+      }
+    >;
+
+    Object.values(AgentRole).forEach((role) => {
+      const roleTasks = completedTasks.filter((t) => t.assignedTo === role);
+      const roleFailed = failedTasks.filter((t) => t.assignedTo === role);
       const total = roleTasks.length + roleFailed.length;
-      
+
       byRole[role] = {
         tasksCompleted: roleTasks.length,
         successRate: total > 0 ? roleTasks.length / total : 0,
@@ -589,13 +623,14 @@ export class SwarmCoordinator {
       messagesProcessed: this.messages.length,
       proposalsCreated: this.proposals.size,
       consensusReached: Array.from(this.proposals.values()).filter(
-        p => p.status === 'accepted' || p.status === 'rejected'
+        (p) => p.status === "accepted" || p.status === "rejected"
       ).length,
       averageConsensusTime: 0, // TODO: Calculate
       tasksCompleted: completedTasks.length,
-      successRate: completedTasks.length + failedTasks.length > 0
-        ? completedTasks.length / (completedTasks.length + failedTasks.length)
-        : 0,
+      successRate:
+        completedTasks.length + failedTasks.length > 0
+          ? completedTasks.length / (completedTasks.length + failedTasks.length)
+          : 0,
       byRole,
     };
   }
@@ -609,7 +644,7 @@ export class SwarmCoordinator {
     status: AgentStatus;
     currentTask?: string;
   }> {
-    return Array.from(this.agents.values()).map(agent => ({
+    return Array.from(this.agents.values()).map((agent) => ({
       id: agent.id,
       role: agent.role,
       status: agent.status,

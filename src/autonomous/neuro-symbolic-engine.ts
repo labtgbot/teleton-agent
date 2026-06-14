@@ -1,21 +1,22 @@
 /**
  * Neuro-Symbolic AI Engine
- * 
+ *
  * Реализует Пункт 7A: Комбинация нейросетей и символьного ИИ
  * - Neural: Интуиция, паттерны, вероятностные выводы
  * - Symbolic: Логика, правила, верификация, дедукция
  */
 
-import { z } from 'zod';
-import { Logger } from '../utils/logger';
+import { Logger } from "../utils/logger.js";
 
-const logger = new Logger('NeuroSymbolicEngine');
+const logger = new Logger("NeuroSymbolicEngine");
+
+type AnyFn = (ctx: unknown) => unknown;
 
 // Символьные правила (Knowledge Base)
 interface SymbolicRule {
   id: string;
-  condition: (context: any) => boolean;
-  action: (context: any) => any;
+  condition: (context: Record<string, unknown>) => boolean;
+  action: AnyFn;
   priority: number;
   domain: string;
 }
@@ -30,7 +31,7 @@ interface NeuralInference {
 
 // Синтезированный результат
 interface SynthesizedResult {
-  conclusion: any;
+  conclusion: unknown;
   neuralContribution: number; // 0-1
   symbolicContribution: number; // 0-1
   conflicts: string[];
@@ -51,40 +52,42 @@ export class NeuroSymbolicEngine {
   private initializeKnowledgeBase(): void {
     // Правило 1: Безопасность транзакций
     this.rules.push({
-      id: 'SECURITY_TX_001',
-      condition: (ctx: any) => ctx.type === 'TRANSACTION' && ctx.amount > 100,
-      action: (ctx: any) => ({
+      id: "SECURITY_TX_001",
+      condition: (ctx: Record<string, unknown>) =>
+        ctx.type === "TRANSACTION" && (ctx.amount as number) > 100,
+      action: (_ctx: unknown) => ({
         requiresApproval: true,
-        riskLevel: 'HIGH',
-        checks: ['balance', 'daily_limit', 'recipient_reputation']
+        riskLevel: "HIGH",
+        checks: ["balance", "daily_limit", "recipient_reputation"],
       }),
       priority: 10,
-      domain: 'security'
+      domain: "security",
     });
 
     // Правило 2: Rate limiting
     this.rules.push({
-      id: 'RATE_LIMIT_001',
-      condition: (ctx: any) => ctx.actionCount > 50 && ctx.timeWindow < 3600,
-      action: (ctx: any) => ({
+      id: "RATE_LIMIT_001",
+      condition: (ctx: Record<string, unknown>) =>
+        (ctx.actionCount as number) > 50 && (ctx.timeWindow as number) < 3600,
+      action: (_ctx: unknown) => ({
         throttled: true,
         delayMs: 5000,
-        message: 'Rate limit exceeded'
+        message: "Rate limit exceeded",
       }),
       priority: 9,
-      domain: 'stability'
+      domain: "stability",
     });
 
     // Правило 3: Конфликт интересов
     this.rules.push({
-      id: 'CONFLICT_001',
-      condition: (ctx: any) => ctx.recipient === ctx.sender,
-      action: (ctx: any) => ({
+      id: "CONFLICT_001",
+      condition: (ctx: Record<string, unknown>) => ctx.recipient === ctx.sender,
+      action: (_ctx: unknown) => ({
         blocked: true,
-        reason: 'Self-transaction detected'
+        reason: "Self-transaction detected",
       }),
       priority: 10,
-      domain: 'security'
+      domain: "security",
     });
 
     logger.info(`Initialized ${this.rules.length} symbolic rules`);
@@ -93,49 +96,51 @@ export class NeuroSymbolicEngine {
   /**
    * Нейронный вывод: интуитивное распознавание паттернов
    */
-  async neuralInference(context: any): Promise<NeuralInference[]> {
+  async neuralInference(context: unknown): Promise<NeuralInference[]> {
     const cacheKey = JSON.stringify(context);
-    
+    const ctx = context as Record<string, unknown>;
+
     // Проверка кэша
-    if (this.inferenceCache.has(cacheKey)) {
-      return this.inferenceCache.get(cacheKey)!;
+    const cached = this.inferenceCache.get(cacheKey);
+    if (cached) {
+      return cached;
     }
 
     const inferences: NeuralInference[] = [];
 
     // Симуляция работы нейросети (в реальности здесь будет ML модель)
     // 1. Классификация намерения
-    if (context.intent) {
+    if (ctx.intent) {
       inferences.push({
-        hypothesis: `User intent: ${context.intent}`,
+        hypothesis: `User intent: ${ctx.intent}`,
         confidence: 0.85,
-        source: 'intent_classifier'
+        source: "intent_classifier",
       });
     }
 
     // 2. Распознавание аномалий
-    if (context.deviation > 2.0) {
+    if ((ctx.deviation as number) > 2.0) {
       inferences.push({
-        hypothesis: 'Anomalous behavior detected',
+        hypothesis: "Anomalous behavior detected",
         confidence: 0.72,
-        source: 'anomaly_detector'
+        source: "anomaly_detector",
       });
     }
 
     // 3. Прогноз успеха
-    const successProbability = this.calculateSuccessProbability(context);
+    const successProbability = this.calculateSuccessProbability(ctx);
     inferences.push({
       hypothesis: `Task success probability: ${(successProbability * 100).toFixed(1)}%`,
       confidence: successProbability,
-      source: 'outcome_predictor'
+      source: "outcome_predictor",
     });
 
     // 4. Эмоциональный контекст (если есть данные)
-    if (context.sentiment) {
+    if (ctx.sentiment) {
       inferences.push({
-        hypothesis: `User sentiment: ${context.sentiment}`,
+        hypothesis: `User sentiment: ${ctx.sentiment}`,
         confidence: 0.68,
-        source: 'sentiment_analyzer'
+        source: "sentiment_analyzer",
       });
     }
 
@@ -146,21 +151,21 @@ export class NeuroSymbolicEngine {
   /**
    * Символьный вывод: логический анализ по правилам
    */
-  symbolicReasoning(context: any): any[] {
-    const results: any[] = [];
-    
+  symbolicReasoning(context: unknown): unknown[] {
+    const results: unknown[] = [];
+
     // Сортировка правил по приоритету
     const sortedRules = [...this.rules].sort((a, b) => b.priority - a.priority);
 
     for (const rule of sortedRules) {
       try {
-        if (rule.condition(context)) {
+        if (rule.condition(context as Record<string, unknown>)) {
           const result = rule.action(context);
           results.push({
             ruleId: rule.id,
             domain: rule.domain,
             outcome: result,
-            triggered: true
+            triggered: true,
           });
           logger.debug(`Rule ${rule.id} triggered`);
         }
@@ -175,56 +180,77 @@ export class NeuroSymbolicEngine {
   /**
    * Синтез: объединение нейронного и символьного выводов
    */
-  async synthesize(context: any): Promise<SynthesizedResult> {
-    logger.info('Starting neuro-symbolic synthesis');
+  async synthesize(context: unknown): Promise<SynthesizedResult> {
+    logger.info("Starting neuro-symbolic synthesis");
 
     // Параллельное выполнение
     const [neuralResults, symbolicResults] = await Promise.all([
       this.neuralInference(context),
-      Promise.resolve(this.symbolicReasoning(context))
+      Promise.resolve(this.symbolicReasoning(context)),
     ]);
 
     const conflicts: string[] = [];
-    let finalDecision: any = null;
-    let reasoning: string[] = [];
+    let finalDecision: Record<string, unknown> | null = null;
+    const reasoning: string[] = [];
 
     // Анализ конфликтов
-    const highRiskNeural = neuralResults.some(r => r.confidence < 0.5 && r.hypothesis.includes('risk'));
-    const blockingSymbolic = symbolicResults.some(r => r.outcome.blocked || r.outcome.requiresApproval);
+    const highRiskNeural = neuralResults.some(
+      (r) => r.confidence < 0.5 && r.hypothesis.includes("risk")
+    );
+    const blockingSymbolic = symbolicResults.some((r) => {
+      const item = r as Record<string, unknown>;
+      const outcome = item.outcome as Record<string, unknown>;
+      return outcome.blocked || outcome.requiresApproval;
+    });
 
     if (highRiskNeural && !blockingSymbolic) {
-      conflicts.push('Neural network detects risk but symbolic rules allow action');
+      conflicts.push("Neural network detects risk but symbolic rules allow action");
     }
 
     if (!highRiskNeural && blockingSymbolic) {
-      conflicts.push('Symbolic rules block action despite low neural risk score');
+      conflicts.push("Symbolic rules block action despite low neural risk score");
     }
 
     // Формирование итогового решения
-    const symbolicBlock = symbolicResults.find(r => r.outcome.blocked);
+    const symbolicBlock = symbolicResults.find((r) => {
+      const item = r as Record<string, unknown>;
+      const outcome = item.outcome as Record<string, unknown>;
+      return outcome.blocked;
+    });
     if (symbolicBlock) {
+      const blockItem = symbolicBlock as Record<string, unknown>;
+      const blockOutcome = blockItem.outcome as Record<string, unknown>;
       finalDecision = {
         allowed: false,
-        reason: symbolicBlock.outcome.reason || 'Symbolic rule violation',
-        ruleId: symbolicBlock.ruleId
+        reason: blockOutcome.reason || "Symbolic rule violation",
+        ruleId: blockItem.ruleId as string,
       };
-      reasoning.push(`Blocked by symbolic rule: ${symbolicBlock.ruleId}`);
+      reasoning.push(`Blocked by symbolic rule: ${blockItem.ruleId as string}`);
     } else {
-      const avgConfidence = neuralResults.reduce((sum, r) => sum + r.confidence, 0) / neuralResults.length;
+      const avgConfidence =
+        neuralResults.reduce((sum, r) => sum + r.confidence, 0) / neuralResults.length;
       finalDecision = {
         allowed: avgConfidence > 0.6,
         confidence: avgConfidence,
-        recommendations: neuralResults.map(r => r.hypothesis)
+        recommendations: neuralResults.map((r) => r.hypothesis),
       };
       reasoning.push(`Neural confidence: ${(avgConfidence * 100).toFixed(1)}%`);
     }
 
     // Добавление символьных ограничений
-    const approvalRequired = symbolicResults.find(r => r.outcome.requiresApproval);
-    if (approvalRequired) {
+    const approvalRequired = symbolicResults.find((r) => {
+      const item = r as Record<string, unknown>;
+      const outcome = item.outcome as Record<string, unknown>;
+      return outcome.requiresApproval;
+    });
+    if (approvalRequired && finalDecision) {
+      const approvalItem = approvalRequired as Record<string, unknown>;
+      const approvalOutcome = approvalItem.outcome as Record<string, unknown>;
       finalDecision.requiresApproval = true;
-      finalDecision.checks = approvalRequired.outcome.checks;
-      reasoning.push(`Additional checks required: ${approvalRequired.outcome.checks.join(', ')}`);
+      finalDecision.checks = approvalOutcome.checks;
+      reasoning.push(
+        `Additional checks required: ${(approvalOutcome.checks as string[]).join(", ")}`
+      );
     }
 
     return {
@@ -232,69 +258,73 @@ export class NeuroSymbolicEngine {
       neuralContribution: neuralResults.length > 0 ? 0.5 : 0,
       symbolicContribution: symbolicResults.length > 0 ? 0.5 : 0,
       conflicts,
-      reasoning: reasoning.join('; ')
+      reasoning: reasoning.join("; "),
     };
   }
 
   /**
    * Causal Reasoning: Причинно-следственный анализ (Pearl's Ladder)
    */
-  causalAnalysis(effect: string, context: any): {
+  causalAnalysis(
+    effect: string,
+    context: unknown
+  ): {
     association: string;
     intervention: string;
     counterfactual: string;
   } {
+    const ctx = context as Record<string, unknown>;
     // Уровень 1: Association (Наблюдение)
-    const association = `Observed correlation: ${effect} occurs when ${this.findCorrelations(effect, context)}`;
+    const association = `Observed correlation: ${effect} occurs when ${this.findCorrelations(effect, ctx)}`;
 
     // Уровень 2: Intervention (Вмешательство)
-    const intervention = `If we prevent ${this.findPrimaryCause(effect, context)}, ${effect} will decrease by ~${this.estimateImpact(effect, context)}%`;
+    const intervention = `If we prevent ${this.findPrimaryCause(effect, ctx)}, ${effect} will decrease by ~${this.estimateImpact(effect, ctx)}%`;
 
     // Уровень 3: Counterfactual (Контрфактическое мышление)
-    const counterfactual = `If ${this.findPrimaryCause(effect, context)} had not occurred, ${effect} would likely not have happened`;
+    const counterfactual = `If ${this.findPrimaryCause(effect, ctx)} had not occurred, ${effect} would likely not have happened`;
 
     return { association, intervention, counterfactual };
   }
 
   // --- Вспомогательные методы ---
 
-  private calculateSuccessProbability(context: any): number {
+  private calculateSuccessProbability(context: Record<string, unknown>): number {
     // Упрощенная эвристика (в реальности - ML модель)
     let prob = 0.75; // Базовая вероятность
 
-    if (context.complexity > 5) prob -= 0.1;
-    if (context.previousFailures > 2) prob -= 0.15;
-    if (context.availableResources < 3) prob -= 0.1;
+    if ((context.complexity as number) > 5) prob -= 0.1;
+    if ((context.previousFailures as number) > 2) prob -= 0.15;
+    if ((context.availableResources as number) < 3) prob -= 0.1;
     if (context.timePressure) prob -= 0.05;
 
     return Math.max(0.1, Math.min(0.99, prob));
   }
 
-  private findCorrelations(effect: string, context: any): string {
+  private findCorrelations(effect: string, context: Record<string, unknown>): string {
     // Симуляция поиска корреляций
     const factors: string[] = [];
-    if (context.timeOfDay === 'night') factors.push('night time');
-    if (context.load > 80) factors.push('high system load');
-    if (context.userExperience < 5) factors.push('inexperienced user');
-    
-    return factors.length > 0 ? factors.join(', ') : 'no strong correlations found';
+    if (context.timeOfDay === "night") factors.push("night time");
+    if ((context.load as number) > 80) factors.push("high system load");
+    if ((context.userExperience as number) < 5) factors.push("inexperienced user");
+
+    return factors.length > 0 ? factors.join(", ") : "no strong correlations found";
   }
 
-  private findPrimaryCause(effect: string, context: any): string {
+  private findPrimaryCause(effect: string, context: Record<string, unknown>): string {
     // Определение основной причины
-    if (context.errorType === 'TIMEOUT') return 'network latency';
-    if (context.errorType === 'INSUFFICIENT_FUNDS') return 'low balance';
-    if (context.errorType === 'RATE_LIMIT') return 'excessive requests';
-    
-    return 'unknown factor';
+    if (context.errorType === "TIMEOUT") return "network latency";
+    if (context.errorType === "INSUFFICIENT_FUNDS") return "low balance";
+    if (context.errorType === "RATE_LIMIT") return "excessive requests";
+
+    return "unknown factor";
   }
 
-  private estimateImpact(effect: string, context: any): number {
+  private estimateImpact(effect: string, context: Record<string, unknown>): number {
     // Оценка влияния
-    if (context.errorType === 'TIMEOUT') return 60;
-    if (context.errorType === 'INSUFFICIENT_FUNDS') return 95;
-    if (context.errorType === 'RATE_LIMIT') return 80;
-    
+    if (context.errorType === "TIMEOUT") return 60;
+    if (context.errorType === "INSUFFICIENT_FUNDS") return 95;
+    if (context.errorType === "RATE_LIMIT") return 80;
+
     return 30;
   }
 }

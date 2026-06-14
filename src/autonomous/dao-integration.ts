@@ -1,6 +1,6 @@
 /**
  * DAO Integration Module
- * 
+ *
  * Интеграция с децентрализованными автономными организациями (DAO) в сети TON:
  * - Голосование по предложениям (Voting)
  * - Делегирование токенов (Token Delegation)
@@ -9,9 +9,8 @@
  * - Автоматическое участие в governance
  */
 
-import type { TonClient} from 'ton';
-import { Address, beginCell, toNano } from 'ton';
-import { ContractProvider } from 'ton-core';
+import type { TonClient } from "@ton/ton";
+import { Address } from "@ton/ton";
 
 export interface DaoProposal {
   id: string;
@@ -21,13 +20,13 @@ export interface DaoProposal {
   proposer: string;
   startTime: number;
   endTime: number;
-  status: 'active' | 'passed' | 'rejected' | 'executed' | 'cancelled';
+  status: "active" | "passed" | "rejected" | "executed" | "cancelled";
   votesFor: bigint;
   votesAgainst: bigint;
   votesAbstain: bigint;
   quorumReached: boolean;
   userVoted?: boolean;
-  userVote?: 'for' | 'against' | 'abstain';
+  userVote?: "for" | "against" | "abstain";
 }
 
 export interface TokenDelegation {
@@ -52,13 +51,13 @@ export interface LiquidityPosition {
 export interface ArbitrationCase {
   id: string;
   daoAddress: string;
-  type: 'dispute' | 'proposal_challenge' | 'treasury_audit';
+  type: "dispute" | "proposal_challenge" | "treasury_audit";
   description: string;
   parties: string[];
   evidence: string[];
-  status: 'open' | 'under_review' | 'voting' | 'resolved';
+  status: "open" | "under_review" | "voting" | "resolved";
   resolution?: string;
-  juryVotes?: Record<string, 'guilty' | 'not_guilty' | 'abstain'>;
+  juryVotes?: Record<string, "guilty" | "not_guilty" | "abstain">;
 }
 
 export class DaoIntegrationModule {
@@ -84,16 +83,16 @@ export class DaoIntegrationModule {
       proposals.push({
         id: `prop_${daoAddr.slice(0, 8)}_1`,
         daoAddress: daoAddr,
-        title: 'Увеличение бюджета на развитие экосистемы',
-        description: 'Предложение выделить 50,000 TON из казначейства на гранты разработчикам.',
-        proposer: 'EQC...xyz',
+        title: "Увеличение бюджета на развитие экосистемы",
+        description: "Предложение выделить 50,000 TON из казначейства на гранты разработчикам.",
+        proposer: "EQC...xyz",
         startTime: Date.now() - 86400000,
         endTime: Date.now() + 518400000, // +6 days
-        status: 'active',
-        votesFor: BigInt('150000000000000'),
-        votesAgainst: BigInt('30000000000000'),
-        votesAbstain: BigInt('10000000000000'),
-        quorumReached: true
+        status: "active",
+        votesFor: BigInt("150000000000000"),
+        votesAgainst: BigInt("30000000000000"),
+        votesAbstain: BigInt("10000000000000"),
+        quorumReached: true,
       });
     }
 
@@ -105,51 +104,59 @@ export class DaoIntegrationModule {
    * Использует AI для анализа текста, истории proposer'а, влияния на экосистему
    */
   async analyzeProposal(proposal: DaoProposal): Promise<{
-    recommendation: 'for' | 'against' | 'abstain';
+    recommendation: "for" | "against" | "abstain";
     confidence: number;
     reasoning: string[];
-    riskLevel: 'low' | 'medium' | 'high';
+    riskLevel: "low" | "medium" | "high";
   }> {
     const reasoning: string[] = [];
-    let recommendation: 'for' | 'against' | 'abstain' = 'abstain';
+    let recommendation: "for" | "against" | "abstain" = "abstain";
     let confidence = 0.5;
-    let riskLevel: 'low' | 'medium' | 'high' = 'medium';
+    let riskLevel: "low" | "medium" | "high" = "medium";
 
     // Анализ соотношения голосов (стадный инстинкт с осторожностью)
     const totalVotes = proposal.votesFor + proposal.votesAgainst + proposal.votesAbstain;
     const forPercentage = Number(proposal.votesFor) / Number(totalVotes);
-    
+
     if (forPercentage > 0.7 && proposal.quorumReached) {
-      reasoning.push('Сильная поддержка сообщества (>70%)');
-      recommendation = 'for';
+      reasoning.push("Сильная поддержка сообщества (>70%)");
+      recommendation = "for";
       confidence = 0.75;
     } else if (forPercentage < 0.3) {
-      reasoning.push('Слабая поддержка сообщества (<30%)');
-      recommendation = 'against';
+      reasoning.push("Слабая поддержка сообщества (<30%)");
+      recommendation = "against";
       confidence = 0.7;
     }
 
     // Анализ времени (срочные vs долгосрочные)
     const timeRemaining = proposal.endTime - Date.now();
-    if (timeRemaining < 86400000) { // < 24 hours
-      reasoning.push('Голосование заканчивается скоро - требуется быстрое решение');
-      riskLevel = 'high';
+    if (timeRemaining < 86400000) {
+      // < 24 hours
+      reasoning.push("Голосование заканчивается скоро - требуется быстрое решение");
+      riskLevel = "high";
     }
 
     // Ключевые слова в описании (простая эвристика)
     const descLower = proposal.description.toLowerCase();
-    if (descLower.includes('грант') || descLower.includes('разработчик') || descLower.includes('экосистем')) {
-      reasoning.push('Предложение способствует развитию экосистемы');
-      if (recommendation !== 'against') {
-        recommendation = 'for';
+    if (
+      descLower.includes("грант") ||
+      descLower.includes("разработчик") ||
+      descLower.includes("экосистем")
+    ) {
+      reasoning.push("Предложение способствует развитию экосистемы");
+      if (recommendation !== "against") {
+        recommendation = "for";
         confidence = Math.max(confidence, 0.8);
       }
     }
 
-    if (descLower.includes('комисси') || descLower.includes('fee') && descLower.includes('увелич')) {
-      reasoning.push('Возможное увеличение комиссий - риск для пользователей');
-      recommendation = 'against';
-      riskLevel = 'high';
+    if (
+      descLower.includes("комисси") ||
+      (descLower.includes("fee") && descLower.includes("увелич"))
+    ) {
+      reasoning.push("Возможное увеличение комиссий - риск для пользователей");
+      recommendation = "against";
+      riskLevel = "high";
       confidence = 0.85;
     }
 
@@ -159,20 +166,23 @@ export class DaoIntegrationModule {
   /**
    * Автоматическое голосование на основе анализа
    */
-  async autoVote(proposal: DaoProposal, maxAmountToStake: bigint): Promise<{
+  async autoVote(
+    proposal: DaoProposal,
+    maxAmountToStake: bigint
+  ): Promise<{
     success: boolean;
     txHash?: string;
-    vote: 'for' | 'against' | 'abstain';
+    vote: "for" | "against" | "abstain";
     stakedAmount: bigint;
   }> {
     const analysis = await this.analyzeProposal(proposal);
 
     // Не голосовать при низком уровне уверенности или высоком риске без подтверждения
-    if (analysis.confidence < 0.6 || analysis.riskLevel === 'high') {
+    if (analysis.confidence < 0.6 || analysis.riskLevel === "high") {
       return {
         success: false,
-        vote: 'abstain',
-        stakedAmount: BigInt(0)
+        vote: "abstain",
+        stakedAmount: BigInt(0),
       };
     }
 
@@ -184,7 +194,7 @@ export class DaoIntegrationModule {
       success: true,
       txHash: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       vote: analysis.recommendation,
-      stakedAmount: stakeAmount
+      stakedAmount: stakeAmount,
     };
   }
 
@@ -201,7 +211,7 @@ export class DaoIntegrationModule {
       amount,
       duration: durationSeconds,
       rewards: BigInt(0),
-      unlockTime: Date.now() + durationSeconds * 1000
+      unlockTime: Date.now() + durationSeconds * 1000,
     };
 
     this.delegatedTokens.set(`${daoAddress}_${Date.now()}`, delegation);
@@ -227,7 +237,7 @@ export class DaoIntegrationModule {
       amountA,
       amountB,
       share: 0.01, // 1% пула (симуляция)
-      feesEarned: BigInt(0)
+      feesEarned: BigInt(0),
     };
 
     this.liquidityPositions.set(poolAddress, position);
@@ -240,18 +250,16 @@ export class DaoIntegrationModule {
    * Участие в арбитраже как член жюри
    */
   async participateInArbitration(caseData: ArbitrationCase): Promise<{
-    verdict: 'guilty' | 'not_guilty' | 'abstain';
+    verdict: "guilty" | "not_guilty" | "abstain";
     reasoning: string;
     confidence: number;
   }> {
     // AI-анализ доказательств и аргументов сторон
-    const reasoning: string[] = [];
-    
     if (caseData.evidence.length === 0) {
       return {
-        verdict: 'abstain',
-        reasoning: 'Недостаточно доказательств для принятия решения',
-        confidence: 0.9
+        verdict: "abstain",
+        reasoning: "Недостаточно доказательств для принятия решения",
+        confidence: 0.9,
       };
     }
 
@@ -259,16 +267,16 @@ export class DaoIntegrationModule {
     const evidenceCount = caseData.evidence.length;
     if (evidenceCount > 5) {
       return {
-        verdict: 'not_guilty',
-        reasoning: 'Обширная доказательная база свидетельствует о прозрачности действий',
-        confidence: 0.75
+        verdict: "not_guilty",
+        reasoning: "Обширная доказательная база свидетельствует о прозрачности действий",
+        confidence: 0.75,
       };
     }
 
     return {
-      verdict: 'guilty',
-      reasoning: 'Ограниченные доказательства вызывают сомнения в добросовестности',
-      confidence: 0.6
+      verdict: "guilty",
+      reasoning: "Ограниченные доказательства вызывают сомнения в добросовестности",
+      confidence: 0.6,
     };
   }
 
@@ -276,17 +284,18 @@ export class DaoIntegrationModule {
    * Получение вознаграждений за стейкинг/участие
    */
   async claimRewards(daoAddress: string): Promise<bigint> {
-    const delegation = Array.from(this.delegatedTokens.values())
-      .find(d => d.daoAddress === daoAddress && d.unlockTime <= Date.now());
+    const delegation = Array.from(this.delegatedTokens.values()).find(
+      (d) => d.daoAddress === daoAddress && d.unlockTime <= Date.now()
+    );
 
     if (!delegation) {
       return BigInt(0);
     }
 
     // Симуляция начисления rewards (например, 5% APY)
-    const annualReward = delegation.amount * BigInt(5) / BigInt(100);
+    const annualReward = (delegation.amount * BigInt(5)) / BigInt(100);
     const timeStaked = Date.now() - (delegation.unlockTime - delegation.duration * 1000);
-    const proportionalReward = annualReward * BigInt(timeStaked) / BigInt(31536000000);
+    const proportionalReward = (annualReward * BigInt(timeStaked)) / BigInt(31536000000);
 
     delegation.rewards += proportionalReward;
     return proportionalReward;
@@ -320,7 +329,7 @@ export class DaoIntegrationModule {
       activeProposals: 0, // Динамически из сети
       votesCast: this.delegatedTokens.size,
       totalRewards,
-      liquidityValue
+      liquidityValue,
     };
   }
 }

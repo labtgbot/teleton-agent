@@ -4,11 +4,15 @@
  * Фаза 4: Self-Improvement Loop
  */
 
-import { Logger } from '../../utils/logger';
-import { ExperienceGatherer } from './experience-gatherer';
-import { PatternMiner } from './pattern-miner';
-import { ImprovementHypothesisEngine } from './hypothesis-engine';
-import { SelfImprovementConfig, SelfImprovementMetrics, ExperienceType } from '../../types/swarm/self-improvement';
+import { Logger } from "../../utils/logger.js";
+import { ExperienceGatherer } from "./experience-gatherer.js";
+import { PatternMiner } from "./pattern-miner.js";
+import { ImprovementHypothesisEngine } from "./hypothesis-engine.js";
+import type {
+  SelfImprovementConfig,
+  SelfImprovementMetrics,
+  ExperienceType,
+} from "../../types/swarm/self-improvement.js";
 
 interface SelfImprovementLoopConfig extends SelfImprovementConfig {
   autoRunInterval: number; // Интервал автоматического запуска (мс)
@@ -20,11 +24,11 @@ interface SelfImprovementLoopConfig extends SelfImprovementConfig {
 export class SelfImprovementLoop {
   private config: SelfImprovementLoopConfig;
   private logger: Logger;
-  
+
   public experienceGatherer: ExperienceGatherer;
   public patternMiner: PatternMiner;
   public hypothesisEngine: ImprovementHypothesisEngine;
-  
+
   private autoRunTimer?: NodeJS.Timeout;
   private isRunning: boolean = false;
   private lastRun: number = 0;
@@ -49,8 +53,8 @@ export class SelfImprovementLoop {
       ...config,
     };
 
-    this.logger = new Logger('SelfImprovementLoop');
-    
+    this.logger = new Logger("SelfImprovementLoop");
+
     // Инициализация компонентов
     this.experienceGatherer = new ExperienceGatherer(this.config);
     this.patternMiner = new PatternMiner(this.experienceGatherer, this.config);
@@ -60,7 +64,7 @@ export class SelfImprovementLoop {
       this.config
     );
 
-    this.logger.info('Self-Improvement Loop initialized');
+    this.logger.info("Self-Improvement Loop initialized");
   }
 
   /**
@@ -68,12 +72,12 @@ export class SelfImprovementLoop {
    */
   async run(): Promise<void> {
     if (!this.config.enabled) {
-      this.logger.warn('Self-Improvement Loop is disabled');
+      this.logger.warn("Self-Improvement Loop is disabled");
       return;
     }
 
     if (this.isRunning) {
-      this.logger.warn('Self-Improvement Loop is already running');
+      this.logger.warn("Self-Improvement Loop is already running");
       return;
     }
 
@@ -86,7 +90,7 @@ export class SelfImprovementLoop {
 
       // Этап 1: Сбор статистики опыта
       const experienceStats = this.experienceGatherer.aggregateStatistics();
-      this.logger.info('Experience Statistics', experienceStats);
+      this.logger.info("Experience Statistics", experienceStats);
 
       if (experienceStats.total < this.config.minExperiencesForMining) {
         this.logger.info(
@@ -97,34 +101,33 @@ export class SelfImprovementLoop {
 
       // Этап 2: Майнинг паттернов
       if (this.config.patternMiningEnabled) {
-        this.logger.info('Phase 1: Mining patterns...');
+        this.logger.info("Phase 1: Mining patterns...");
         const newPatterns = await this.patternMiner.minePatterns();
         this.logger.info(`Discovered ${newPatterns.length} new patterns`);
 
         const patternStats = this.patternMiner.getStatistics();
-        this.logger.info('Pattern Statistics', patternStats);
+        this.logger.info("Pattern Statistics", patternStats);
       }
 
       // Этап 3: Генерация гипотез улучшения
       if (this.config.hypothesisGenerationEnabled) {
-        this.logger.info('Phase 2: Generating improvement hypotheses...');
+        this.logger.info("Phase 2: Generating improvement hypotheses...");
         const newHypotheses = await this.hypothesisEngine.generateHypotheses();
         this.logger.info(`Generated ${newHypotheses.length} new hypotheses`);
 
         const hypothesisStats = this.hypothesisEngine.getStatistics();
-        this.logger.info('Hypothesis Statistics', hypothesisStats);
+        this.logger.info("Hypothesis Statistics", hypothesisStats);
       }
 
       // Этап 4: Автоматическое тестирование низкоуровневых гипотез
       if (this.config.autoTestLowRisk) {
-        this.logger.info('Phase 3: Auto-testing low-risk hypotheses...');
+        this.logger.info("Phase 3: Auto-testing low-risk hypotheses...");
         await this.autoTestLowRiskHypotheses();
       }
 
       this.logger.info(`Self-Improvement Cycle #${this.totalCycles} completed successfully`);
-
     } catch (error) {
-      this.logger.error('Error in Self-Improvement Cycle', error);
+      this.logger.error("Error in Self-Improvement Cycle", error);
       throw error;
     } finally {
       this.isRunning = false;
@@ -135,10 +138,12 @@ export class SelfImprovementLoop {
    * Автоматическое тестирование низкоуровневых гипотез
    */
   private async autoTestLowRiskHypotheses(): Promise<void> {
-    const lowRiskHypotheses = this.hypothesisEngine.getHypotheses({
-      status: 'draft',
-      minPriority: 1,
-    }).filter(h => h.priority <= 3); // Низкий приоритет = низкий риск
+    const lowRiskHypotheses = this.hypothesisEngine
+      .getHypotheses({
+        status: "draft",
+        minPriority: 1,
+      })
+      .filter((h) => h.priority <= 3); // Низкий приоритет = низкий риск
 
     let testedCount = 0;
     const maxConcurrent = this.config.maxConcurrentTests;
@@ -151,7 +156,7 @@ export class SelfImprovementLoop {
       try {
         this.logger.info(`Auto-testing hypothesis: ${hypothesis.title}`);
         const result = await this.hypothesisEngine.testHypothesis(hypothesis.id);
-        
+
         if (result.success && result.autoApproved) {
           await this.hypothesisEngine.integrateHypothesis(hypothesis.id);
           this.logger.info(`Hypothesis integrated: ${hypothesis.title}`);
@@ -180,14 +185,18 @@ export class SelfImprovementLoop {
       try {
         await this.run();
       } catch (error) {
-        this.logger.error('Error in auto-run cycle', error);
+        this.logger.error("Error in auto-run cycle", error);
       }
     };
 
-    this.autoRunTimer = setInterval(runCycle, this.config.autoRunInterval);
-    
+    this.autoRunTimer = setInterval(() => {
+      void runCycle();
+    }, this.config.autoRunInterval);
+
     // Запуск первого цикла через небольшой интервал
-    setTimeout(runCycle, 5000);
+    setTimeout(() => {
+      void runCycle();
+    }, 5000);
   }
 
   /**
@@ -197,7 +206,7 @@ export class SelfImprovementLoop {
     if (this.autoRunTimer) {
       clearInterval(this.autoRunTimer);
       this.autoRunTimer = undefined;
-      this.logger.info('Auto-run stopped');
+      this.logger.info("Auto-run stopped");
     }
   }
 
@@ -233,7 +242,10 @@ export class SelfImprovementLoop {
       experiencesByType: experienceStats.byType,
       totalPatterns: patternStats.total,
       validatedPatterns: patternStats.validatedCount,
-      activeHypotheses: hypothesisStats.total - hypothesisStats.byStatus.integrated - hypothesisStats.byStatus.rejected,
+      activeHypotheses:
+        hypothesisStats.total -
+        hypothesisStats.byStatus.integrated -
+        hypothesisStats.byStatus.rejected,
       testsInProgress: hypothesisStats.byStatus.testing,
       integratedImprovements: hypothesisStats.byStatus.integrated,
       averageSuccessRate: experienceStats.successRate,
@@ -246,12 +258,8 @@ export class SelfImprovementLoop {
    * Расчет скорости улучшений (в неделю)
    */
   private calculateImprovementVelocity(): number {
-    const oneWeek = 7 * 24 * 60 * 60 * 1000;
-    const now = Date.now();
-    const weekAgo = now - oneWeek;
-
     const hypothesisStats = this.hypothesisEngine.getStatistics();
-    
+
     // Упрощенно - все интегрированные улучшения
     // В реальности нужно фильтровать по времени
     return hypothesisStats.byStatus.integrated;
@@ -260,24 +268,32 @@ export class SelfImprovementLoop {
   /**
    * Экспорт данных для анализа
    */
-  exportData(format: 'json' | 'summary' = 'json'): string {
-    if (format === 'summary') {
+  exportData(format: "json" | "summary" = "json"): string {
+    if (format === "summary") {
       const metrics = this.getMetrics();
-      return JSON.stringify({
-        summary: metrics,
-        timestamp: Date.now(),
-        version: '4.0',
-      }, null, 2);
+      return JSON.stringify(
+        {
+          summary: metrics,
+          timestamp: Date.now(),
+          version: "4.0",
+        },
+        null,
+        2
+      );
     }
 
     // Полный экспорт
-    return JSON.stringify({
-      experiences: JSON.parse(this.experienceGatherer.exportForAnalysis('json')),
-      patterns: this.patternMiner.getPatterns(),
-      hypotheses: this.hypothesisEngine.getHypotheses(),
-      metrics: this.getMetrics(),
-      timestamp: Date.now(),
-    }, null, 2);
+    return JSON.stringify(
+      {
+        experiences: JSON.parse(this.experienceGatherer.exportForAnalysis("json")),
+        patterns: this.patternMiner.getPatterns(),
+        hypotheses: this.hypothesisEngine.getHypotheses(),
+        metrics: this.getMetrics(),
+        timestamp: Date.now(),
+      },
+      null,
+      2
+    );
   }
 
   /**
@@ -287,9 +303,9 @@ export class SelfImprovementLoop {
     experiencesRemoved: number;
   }> {
     const experiencesRemoved = await this.experienceGatherer.cleanup(daysToRetain);
-    
+
     this.logger.info(`Cleanup complete: ${experiencesRemoved} experiences removed`);
-    
+
     return { experiencesRemoved };
   }
 

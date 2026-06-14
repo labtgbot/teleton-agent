@@ -1,5 +1,5 @@
 import React from 'react';
-import { EmotionType, EmotionalState } from '../../../types/emotional-intelligence';
+import { EmotionType, EmotionalState } from '../../../types/emotional-intelligence.js';
 import './EmotionFeed.css';
 
 interface EmotionFeedProps {

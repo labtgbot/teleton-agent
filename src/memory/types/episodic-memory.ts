@@ -1,6 +1,6 @@
 /**
  * Episodic Memory: Event-based temporal memory system
- * 
+ *
  * Stores specific experiences with:
  * - Timestamps and temporal ordering
  * - Emotional weight/importance
@@ -8,15 +8,14 @@
  * - Decay and forgetting mechanisms
  */
 
-import { z } from 'zod';
-import { logger } from '../../utils/logger';
+import { logger } from "../../utils/logger.js";
 
 export interface EpisodicEvent {
   id: string;
   timestamp: number;
   type: EventType;
   content: string;
-  context: Record<string, any>;
+  context: Record<string, unknown>;
   emotionalWeight: number; // -1.0 to 1.0
   importance: number; // 0.0 to 1.0
   tags: string[];
@@ -26,13 +25,13 @@ export interface EpisodicEvent {
 }
 
 export enum EventType {
-  ACTION = 'ACTION',
-  DECISION = 'DECISION',
-  SUCCESS = 'SUCCESS',
-  FAILURE = 'FAILURE',
-  INTERACTION = 'INTERACTION',
-  LEARNING = 'LEARNING',
-  ANOMALY = 'ANOMALY',
+  ACTION = "ACTION",
+  DECISION = "DECISION",
+  SUCCESS = "SUCCESS",
+  FAILURE = "FAILURE",
+  INTERACTION = "INTERACTION",
+  LEARNING = "LEARNING",
+  ANOMALY = "ANOMALY",
 }
 
 export interface EpisodicQuery {
@@ -62,12 +61,12 @@ export class EpisodicMemory {
   async store(
     content: string,
     type: EventType,
-    context: Record<string, any> = {},
+    context: Record<string, unknown> = {},
     emotionalWeight: number = 0,
     importance: number = 0.5
   ): Promise<string> {
     const id = `ep_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     const event: EpisodicEvent = {
       id,
       timestamp: Date.now(),
@@ -83,13 +82,13 @@ export class EpisodicMemory {
 
     this.events.set(id, event);
     this.insertIntoTimeline(event);
-    
+
     // Find related events
     await this.findRelatedEvents(event);
-    
+
     // Apply decay and forget old/low-importance events
     this.applyDecayAndForgetting();
-    
+
     logger.debug(`[EpisodicMemory] Stored event ${id}: ${type} (importance: ${importance})`);
     return id;
   }
@@ -99,49 +98,49 @@ export class EpisodicMemory {
    */
   query(filters: EpisodicQuery): EpisodicEvent[] {
     let results = Array.from(this.events.values());
-    
+
     // Time range filter
     if (filters.timeRange) {
-      results = results.filter(e => 
-        e.timestamp >= filters.timeRange!.start && 
-        e.timestamp <= filters.timeRange!.end
-      );
+      const { start, end } = filters.timeRange;
+      results = results.filter((e) => e.timestamp >= start && e.timestamp <= end);
     }
-    
+
     // Type filter
     if (filters.types && filters.types.length > 0) {
-      results = results.filter(e => filters.types!.includes(e.type));
+      const types = filters.types;
+      results = results.filter((e) => types.includes(e.type));
     }
-    
+
     // Tag filter
     if (filters.tags && filters.tags.length > 0) {
-      results = results.filter(e => 
-        filters.tags!.some(tag => e.tags.includes(tag))
-      );
+      const tags = filters.tags;
+      results = results.filter((e) => tags.some((tag) => e.tags.includes(tag)));
     }
-    
+
     // Importance filter
     if (filters.minImportance !== undefined) {
-      results = results.filter(e => e.importance >= filters.minImportance!);
+      const minImportance = filters.minImportance;
+      results = results.filter((e) => e.importance >= minImportance);
     }
-    
+
     // Emotional weight filter
     if (filters.minEmotionalWeight !== undefined) {
-      results = results.filter(e => e.emotionalWeight >= filters.minEmotionalWeight!);
+      const minEmotionalWeight = filters.minEmotionalWeight;
+      results = results.filter((e) => e.emotionalWeight >= minEmotionalWeight);
     }
-    
+
     // Sort by relevance (combination of recency, importance, and emotional weight)
     results.sort((a, b) => {
       const scoreA = this.calculateRelevanceScore(a);
       const scoreB = this.calculateRelevanceScore(b);
       return scoreB - scoreA;
     });
-    
+
     // Limit results
     if (filters.limit) {
       results = results.slice(0, filters.limit);
     }
-    
+
     return results;
   }
 
@@ -150,14 +149,14 @@ export class EpisodicMemory {
    */
   getTimeline(startTime?: number, endTime?: number, limit: number = 50): EpisodicEvent[] {
     let filtered = this.timeline;
-    
+
     if (startTime) {
-      filtered = filtered.filter(e => e.timestamp >= startTime);
+      filtered = filtered.filter((e) => e.timestamp >= startTime);
     }
     if (endTime) {
-      filtered = filtered.filter(e => e.timestamp <= endTime);
+      filtered = filtered.filter((e) => e.timestamp <= endTime);
     }
-    
+
     return filtered.slice(0, limit);
   }
 
@@ -167,13 +166,13 @@ export class EpisodicMemory {
   recall(eventId: string): EpisodicEvent | null {
     const event = this.events.get(eventId);
     if (!event) return null;
-    
+
     event.recalledCount++;
     event.lastRecalled = Date.now();
-    
+
     // Boost importance on recall
     event.importance = Math.min(1.0, event.importance + 0.05);
-    
+
     logger.debug(`[EpisodicMemory] Recalled event ${eventId} (count: ${event.recalledCount})`);
     return event;
   }
@@ -184,26 +183,26 @@ export class EpisodicMemory {
   async findSimilar(context: string, limit: number = 5): Promise<EpisodicEvent[]> {
     // Simple similarity based on tag overlap and keyword matching
     const contextTags = this.extractTags(context, EventType.ACTION);
-    const scoredEvents = Array.from(this.events.values()).map(event => {
-      const tagOverlap = event.tags.filter(t => contextTags.includes(t)).length;
+    const scoredEvents = Array.from(this.events.values()).map((event) => {
+      const tagOverlap = event.tags.filter((t) => contextTags.includes(t)).length;
       const keywordMatches = this.countKeywordMatches(context, event.content);
       const score = (tagOverlap * 0.6 + keywordMatches * 0.4) * event.importance;
       return { event, score };
     });
-    
+
     scoredEvents.sort((a, b) => b.score - a.score);
-    return scoredEvents.slice(0, limit).map(x => x.event);
+    return scoredEvents.slice(0, limit).map((x) => x.event);
   }
 
   /**
    * Consolidate memories (called during "sleep" cycles)
    */
   async consolidate(): Promise<{ preserved: number; forgotten: number }> {
-    logger.info('[EpisodicMemory] Starting consolidation cycle...');
-    
+    logger.info("[EpisodicMemory] Starting consolidation cycle...");
+
     let preserved = 0;
     let forgotten = 0;
-    
+
     for (const [id, event] of this.events.entries()) {
       // High-importance or frequently recalled events are preserved
       if (event.importance > 0.7 || event.recalledCount > 5) {
@@ -217,8 +216,10 @@ export class EpisodicMemory {
         forgotten++;
       }
     }
-    
-    logger.info(`[EpisodicMemory] Consolidation complete: ${preserved} preserved, ${forgotten} forgotten`);
+
+    logger.info(
+      `[EpisodicMemory] Consolidation complete: ${preserved} preserved, ${forgotten} forgotten`
+    );
     return { preserved, forgotten };
   }
 
@@ -228,40 +229,42 @@ export class EpisodicMemory {
   private extractTags(content: string, type: EventType): string[] {
     const tags: string[] = [];
     const lowerContent = content.toLowerCase();
-    
+
     // Type-based tags
     tags.push(type.toLowerCase());
-    
+
     // Keyword-based tags (simplified)
-    const keywords = {
-      [EventType.SUCCESS]: ['success', 'completed', 'achieved', 'won'],
-      [EventType.FAILURE]: ['fail', 'error', 'mistake', 'lost'],
-      [EventType.DECISION]: ['decide', 'choose', 'select', 'option'],
-      [EventType.INTERACTION]: ['user', 'message', 'conversation', 'response'],
-      [EventType.LEARNING]: ['learn', 'understand', 'realize', 'insight'],
+    const keywords: Record<EventType, string[]> = {
+      [EventType.ACTION]: ["action", "execute", "perform", "do"],
+      [EventType.DECISION]: ["decide", "choose", "select", "option"],
+      [EventType.SUCCESS]: ["success", "completed", "achieved", "won"],
+      [EventType.FAILURE]: ["fail", "error", "mistake", "lost"],
+      [EventType.INTERACTION]: ["user", "message", "conversation", "response"],
+      [EventType.LEARNING]: ["learn", "understand", "realize", "insight"],
+      [EventType.ANOMALY]: ["anomaly", "unusual", "unexpected", "abnormal"],
     };
-    
+
     const typeKeywords = keywords[type] || [];
-    typeKeywords.forEach(keyword => {
+    typeKeywords.forEach((keyword) => {
       if (lowerContent.includes(keyword)) {
         tags.push(keyword);
       }
     });
-    
+
     // Entity extraction (very simplified)
     const entityPatterns = [
       /\b[A-Z][a-z]+(?:\s[A-Z][a-z]+)+\b/g, // Proper nouns
       /@\w+/g, // Mentions
       /#\w+/g, // Hashtags
     ];
-    
-    entityPatterns.forEach(pattern => {
+
+    entityPatterns.forEach((pattern) => {
       const matches = content.match(pattern);
       if (matches) {
-        tags.push(...matches.map(m => m.toLowerCase()));
+        tags.push(...matches.map((m) => m.toLowerCase()));
       }
     });
-    
+
     return [...new Set(tags)];
   }
 
@@ -270,22 +273,20 @@ export class EpisodicMemory {
    */
   private async findRelatedEvents(event: EpisodicEvent): Promise<void> {
     const similar = await this.findSimilar(event.content, 5);
-    event.relatedEvents = similar
-      .filter(e => e.id !== event.id)
-      .map(e => e.id);
+    event.relatedEvents = similar.filter((e) => e.id !== event.id).map((e) => e.id);
   }
 
   /**
    * Insert event into timeline in chronological order
    */
   private insertIntoTimeline(event: EpisodicEvent): void {
-    const index = this.timeline.findIndex(e => e.timestamp < event.timestamp);
+    const index = this.timeline.findIndex((e) => e.timestamp < event.timestamp);
     if (index === -1) {
       this.timeline.push(event);
     } else {
       this.timeline.splice(index, 0, event);
     }
-    
+
     // Trim timeline if too long
     if (this.timeline.length > this.MAX_EVENTS) {
       this.timeline = this.timeline.slice(0, this.MAX_EVENTS);
@@ -296,7 +297,7 @@ export class EpisodicMemory {
    * Remove event from timeline
    */
   private removeFromTimeline(eventId: string): void {
-    const index = this.timeline.findIndex(e => e.id === eventId);
+    const index = this.timeline.findIndex((e) => e.id === eventId);
     if (index !== -1) {
       this.timeline.splice(index, 1);
     }
@@ -308,10 +309,10 @@ export class EpisodicMemory {
   private calculateRelevanceScore(event: EpisodicEvent): number {
     const now = Date.now();
     const hoursSinceEvent = (now - event.timestamp) / (1000 * 60 * 60);
-    
+
     // Recency decay (exponential)
     const recencyScore = Math.exp(-0.1 * hoursSinceEvent);
-    
+
     // Combined score
     return (
       recencyScore * 0.3 +
@@ -325,10 +326,18 @@ export class EpisodicMemory {
    * Count keyword matches between two texts
    */
   private countKeywordMatches(text1: string, text2: string): number {
-    const words1 = text1.toLowerCase().split(/\W+/).filter(w => w.length > 3);
-    const words2 = new Set(text2.toLowerCase().split(/\W+/).filter(w => w.length > 3));
-    
-    return words1.filter(w => words2.has(w)).length;
+    const words1 = text1
+      .toLowerCase()
+      .split(/\W+/)
+      .filter((w) => w.length > 3);
+    const words2 = new Set(
+      text2
+        .toLowerCase()
+        .split(/\W+/)
+        .filter((w) => w.length > 3)
+    );
+
+    return words1.filter((w) => words2.has(w)).length;
   }
 
   /**
@@ -337,28 +346,29 @@ export class EpisodicMemory {
   private applyDecayAndForgetting(): void {
     const now = Date.now();
     const hoursElapsed = 1; // Assume called hourly
-    
+
     for (const [id, event] of this.events.entries()) {
       // Decay importance over time
-      event.importance *= (1 - this.DECAY_RATE * hoursElapsed);
-      
+      event.importance *= 1 - this.DECAY_RATE * hoursElapsed;
+
       // Boost if recently recalled
       if (event.lastRecalled && now - event.lastRecalled < 1000 * 60 * 60) {
         event.importance = Math.min(1.0, event.importance + 0.1);
       }
-      
+
       // Forget if below threshold
       if (event.importance < this.FORGET_THRESHOLD && event.recalledCount === 0) {
         this.events.delete(id);
         this.removeFromTimeline(id);
       }
     }
-    
+
     // Enforce max events limit
     if (this.events.size > this.MAX_EVENTS) {
-      const sortedByImportance = Array.from(this.events.entries())
-        .sort((a, b) => b[1].importance - a[1].importance);
-      
+      const sortedByImportance = Array.from(this.events.entries()).sort(
+        (a, b) => b[1].importance - a[1].importance
+      );
+
       const toRemove = sortedByImportance.slice(this.MAX_EVENTS);
       toRemove.forEach(([id]) => {
         this.events.delete(id);
@@ -373,12 +383,12 @@ export class EpisodicMemory {
   getStats(): { total: number; byType: Record<string, number>; avgImportance: number } {
     const byType: Record<string, number> = {};
     let totalImportance = 0;
-    
+
     for (const event of this.events.values()) {
       byType[event.type] = (byType[event.type] || 0) + 1;
       totalImportance += event.importance;
     }
-    
+
     return {
       total: this.events.size,
       byType,

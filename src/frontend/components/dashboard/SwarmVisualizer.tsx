@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AgentRole, ConsensusMechanism } from '../../../types/swarm';
+import { AgentRole, ConsensusMechanism } from '../../../types/swarm.js';
 import './SwarmVisualizer.css';
 
 interface SwarmVisualizerProps {

@@ -4,17 +4,17 @@
  * Фаза 4: Self-Improvement Loop
  */
 
-import { v4 as uuidv4 } from 'uuid';
-import { 
+import { randomUUID } from "crypto";
+import { ExperienceType } from "../../types/swarm/self-improvement.js";
+import type {
   Pattern,
   ImprovementHypothesis,
   TestResult,
   SelfImprovementConfig,
-  ExperienceType
-} from '../../types/swarm/self-improvement';
-import { Logger } from '../../utils/logger';
-import { PatternMiner } from './pattern-miner';
-import { ExperienceGatherer } from './experience-gatherer';
+} from "../../types/swarm/self-improvement.js";
+import { Logger } from "../../utils/logger.js";
+import type { PatternMiner } from "./pattern-miner.js";
+import type { ExperienceGatherer } from "./experience-gatherer.js";
 
 interface HypothesisTesterConfig extends SelfImprovementConfig {
   autoExecuteLowRisk: boolean;
@@ -38,7 +38,7 @@ export class ImprovementHypothesisEngine {
     this.experienceGatherer = experienceGatherer;
     this.config = {
       autoExecuteLowRisk: true,
-      simulationEnvironment: 'sandbox',
+      simulationEnvironment: "sandbox",
       enabled: true,
       minExperiencesForPattern: 5,
       patternConfidenceThreshold: 0.7,
@@ -51,8 +51,8 @@ export class ImprovementHypothesisEngine {
       reviewRequired: true,
       ...config,
     };
-    
-    this.logger = new Logger('HypothesisEngine');
+
+    this.logger = new Logger("HypothesisEngine");
   }
 
   /**
@@ -60,11 +60,11 @@ export class ImprovementHypothesisEngine {
    */
   async generateHypotheses(): Promise<ImprovementHypothesis[]> {
     if (!this.config.enabled) {
-      this.logger.warn('Hypothesis generation is disabled');
+      this.logger.warn("Hypothesis generation is disabled");
       return [];
     }
 
-    this.logger.info('Generating improvement hypotheses...');
+    this.logger.info("Generating improvement hypotheses...");
 
     // Получаем высококачественные паттерны
     const patterns = this.patternMiner.getPatterns({
@@ -97,7 +97,7 @@ export class ImprovementHypothesisEngine {
     await this.saveHypotheses(newHypotheses);
 
     this.logger.info(`Generated ${newHypotheses.length} improvement hypotheses`);
-    
+
     return newHypotheses;
   }
 
@@ -106,26 +106,26 @@ export class ImprovementHypothesisEngine {
    */
   private createImprovementHypothesis(pattern: Pattern): ImprovementHypothesis | null {
     const expectedImprovement = (0.95 - pattern.successRate) * 100;
-    
+
     if (expectedImprovement < 5) {
       // Улучшение слишком маленькое
       return null;
     }
 
     return {
-      id: uuidv4(),
+      id: randomUUID(),
       title: `Improve ${pattern.name}`,
       description: `Optimize ${pattern.category} pattern to increase success rate from ${(pattern.successRate * 100).toFixed(1)}% to 95%`,
       basedOnPatterns: [pattern.id],
       expectedImpact: {
-        metric: 'success_rate',
+        metric: "success_rate",
         improvement: expectedImprovement,
         confidence: pattern.confidence * 0.8,
       },
       proposedChanges: [
         {
           component: this.inferComponentFromCategory(pattern.category),
-          change: `Apply optimized strategy from pattern: ${pattern.actions.join(', ')}`,
+          change: `Apply optimized strategy from pattern: ${pattern.actions.join(", ")}`,
           rationale: `Pattern shows ${pattern.frequency} occurrences with ${(pattern.successRate * 100).toFixed(1)}% success`,
         },
       ],
@@ -139,7 +139,7 @@ export class ImprovementHypothesisEngine {
         ],
         rollbackPlan: `Revert to previous ${this.inferComponentFromCategory(pattern.category)} logic`,
       },
-      status: 'draft',
+      status: "draft",
       priority: this.calculatePriority(pattern, expectedImprovement),
       createdAt: Date.now(),
     };
@@ -150,32 +150,29 @@ export class ImprovementHypothesisEngine {
    */
   private createFixHypothesis(pattern: Pattern): ImprovementHypothesis | null {
     return {
-      id: uuidv4(),
+      id: randomUUID(),
       title: `Fix critical issue in ${pattern.name}`,
       description: `Address high failure rate (${((1 - pattern.successRate) * 100).toFixed(1)}%) in ${pattern.category}`,
       basedOnPatterns: [pattern.id],
       expectedImpact: {
-        metric: 'failure_rate',
+        metric: "failure_rate",
         improvement: (1 - pattern.successRate) * 100,
         confidence: 0.9,
       },
       proposedChanges: [
         {
           component: this.inferComponentFromCategory(pattern.category),
-          change: `Implement error handling for: ${pattern.conditions.join(', ')}`,
+          change: `Implement error handling for: ${pattern.conditions.join(", ")}`,
           rationale: `High failure rate indicates missing error handling or edge cases`,
         },
       ],
       testPlan: {
-        method: 'simulation',
+        method: "simulation",
         duration: 3600000, // 1 hour
-        successCriteria: [
-          `Failure rate reduced by at least 50%`,
-          `No new error types introduced`,
-        ],
+        successCriteria: [`Failure rate reduced by at least 50%`, `No new error types introduced`],
         rollbackPlan: `Disable problematic ${pattern.category} optimization`,
       },
-      status: 'pending_review',
+      status: "pending_review",
       priority: 9, // Высокий приоритет для исправлений
       createdAt: Date.now(),
     };
@@ -186,30 +183,30 @@ export class ImprovementHypothesisEngine {
    */
   private inferComponentFromCategory(category: string): string {
     const mapping: Record<string, string> = {
-      decision_making: 'decision-engine',
-      tool_usage: 'tool-executor',
-      communication: 'communication-module',
-      problem_solving: 'solver',
-      resource_management: 'resource-manager',
-      error_handling: 'error-handler',
-      optimization: 'optimizer',
+      decision_making: "decision-engine",
+      tool_usage: "tool-executor",
+      communication: "communication-module",
+      problem_solving: "solver",
+      resource_management: "resource-manager",
+      error_handling: "error-handler",
+      optimization: "optimizer",
     };
-    return mapping[category] || 'core-agent';
+    return mapping[category] || "core-agent";
   }
 
   /**
    * Выбор метода тестирования на основе риска
    */
-  private selectTestMethod(riskLevel: string): 'simulation' | 'canary' | 'ab_test' | 'shadow' {
+  private selectTestMethod(riskLevel: string): "simulation" | "canary" | "ab_test" | "shadow" {
     switch (riskLevel) {
-      case 'low':
-        return this.config.autoTestLowRisk ? 'canary' : 'simulation';
-      case 'medium':
-        return 'ab_test';
-      case 'high':
-        return 'shadow';
+      case "low":
+        return this.config.autoTestLowRisk ? "canary" : "simulation";
+      case "medium":
+        return "ab_test";
+      case "high":
+        return "shadow";
       default:
-        return 'simulation';
+        return "simulation";
     }
   }
 
@@ -218,13 +215,13 @@ export class ImprovementHypothesisEngine {
    */
   private calculatePriority(pattern: Pattern, expectedImprovement: number): number {
     const basePriority = Math.round(expectedImprovement / 10); // 1-10
-    
+
     // Корректировка по частоте
     const frequencyBonus = Math.min(pattern.frequency / 20, 2);
-    
+
     // Корректировка по риску
-    const riskPenalty = pattern.riskLevel === 'high' ? -2 : 0;
-    
+    const riskPenalty = pattern.riskLevel === "high" ? -2 : 0;
+
     return Math.max(1, Math.min(10, basePriority + frequencyBonus + riskPenalty));
   }
 
@@ -240,18 +237,18 @@ export class ImprovementHypothesisEngine {
    * Запуск тестирования гипотезы
    */
   async testHypothesis(hypothesisId: string): Promise<TestResult> {
-    const hypothesis = this.hypotheses.find(h => h.id === hypothesisId);
-    
+    const hypothesis = this.hypotheses.find((h) => h.id === hypothesisId);
+
     if (!hypothesis) {
       throw new Error(`Hypothesis ${hypothesisId} not found`);
     }
 
-    if (hypothesis.status !== 'draft' && hypothesis.status !== 'pending_review') {
+    if (hypothesis.status !== "draft" && hypothesis.status !== "pending_review") {
       throw new Error(`Hypothesis ${hypothesisId} is not in testable state: ${hypothesis.status}`);
     }
 
-    hypothesis.status = 'testing';
-    
+    hypothesis.status = "testing";
+
     this.logger.info(`Starting test for hypothesis: ${hypothesis.title}`, {
       method: hypothesis.testPlan.method,
       duration: hypothesis.testPlan.duration,
@@ -259,18 +256,18 @@ export class ImprovementHypothesisEngine {
 
     // Выполнение теста в зависимости от метода
     let result: TestResult;
-    
+
     switch (hypothesis.testPlan.method) {
-      case 'simulation':
+      case "simulation":
         result = await this.runSimulation(hypothesis);
         break;
-      case 'canary':
+      case "canary":
         result = await this.runCanaryTest(hypothesis);
         break;
-      case 'ab_test':
+      case "ab_test":
         result = await this.runABTest(hypothesis);
         break;
-      case 'shadow':
+      case "shadow":
         result = await this.runShadowTest(hypothesis);
         break;
     }
@@ -292,22 +289,22 @@ export class ImprovementHypothesisEngine {
 
     // Симуляция на исторических данных
     const experiences = this.experienceGatherer.getRecentExperiences(500);
-    
+
     for (let i = 0; i < iterations; i++) {
       // Имитация применения изменений
       const simulatedOutcome = this.simulateApplication(hypothesis, experiences);
       results.push(simulatedOutcome);
     }
 
-    const successCount = results.filter(r => r.success).length;
+    const successCount = results.filter((r) => r.success).length;
     const successRate = successCount / iterations;
 
     const testResult: TestResult = {
       hypothesisId: hypothesis.id,
-      testId: uuidv4(),
+      testId: randomUUID(),
       startTime: Date.now() - 10000,
       endTime: Date.now(),
-      method: 'simulation',
+      method: "simulation",
       metrics: {
         successRate,
         iterations,
@@ -316,12 +313,13 @@ export class ImprovementHypothesisEngine {
       success: successRate >= 0.9,
       findings: [
         `Simulation completed: ${successCount}/${iterations} successful`,
-        `Expected improvement: ${(hypothesis.expectedImpact.improvement).toFixed(1)}%`,
+        `Expected improvement: ${hypothesis.expectedImpact.improvement.toFixed(1)}%`,
       ],
-      recommendations: successRate >= 0.9 
-        ? ['Proceed to canary deployment'] 
-        : ['Revise hypothesis', 'Collect more data'],
-      autoApproved: successRate >= 0.95 && hypothesis.testPlan.method === 'simulation',
+      recommendations:
+        successRate >= 0.9
+          ? ["Proceed to canary deployment"]
+          : ["Revise hypothesis", "Collect more data"],
+      autoApproved: successRate >= 0.95 && hypothesis.testPlan.method === "simulation",
     };
 
     return testResult;
@@ -332,13 +330,13 @@ export class ImprovementHypothesisEngine {
    */
   private simulateApplication(
     hypothesis: ImprovementHypothesis,
-    experiences: any[]
+    _experiences: unknown[]
   ): { success: boolean; metrics: Record<string, number> } {
     // Упрощенная симуляция
     const baseSuccessRate = 0.7;
     const improvementFactor = hypothesis.expectedImpact.confidence;
-    
-    const simulatedSuccessRate = baseSuccessRate + (improvementFactor * 0.2);
+
+    const simulatedSuccessRate = baseSuccessRate + improvementFactor * 0.2;
     const success = Math.random() < simulatedSuccessRate;
 
     return {
@@ -354,16 +352,16 @@ export class ImprovementHypothesisEngine {
    */
   private async runCanaryTest(hypothesis: ImprovementHypothesis): Promise<TestResult> {
     this.logger.info(`Starting canary test (${this.config.canaryPercentage}% traffic)...`);
-    
+
     // В реальной реализации здесь было бы развертывание на части трафика
     await this.sleep(5000); // Имитация времени теста
 
     const testResult: TestResult = {
       hypothesisId: hypothesis.id,
-      testId: uuidv4(),
+      testId: randomUUID(),
       startTime: Date.now() - 5000,
       endTime: Date.now(),
-      method: 'canary',
+      method: "canary",
       metrics: {
         successRate: 0.92,
         errorRate: 0.03,
@@ -372,9 +370,9 @@ export class ImprovementHypothesisEngine {
       success: true,
       findings: [
         `Canary test successful on ${this.config.canaryPercentage}% traffic`,
-        'No significant issues detected',
+        "No significant issues detected",
       ],
-      recommendations: ['Proceed to full rollout'],
+      recommendations: ["Proceed to full rollout"],
       autoApproved: true,
     };
 
@@ -386,16 +384,16 @@ export class ImprovementHypothesisEngine {
    */
   private async runABTest(hypothesis: ImprovementHypothesis): Promise<TestResult> {
     this.logger.info(`Starting A/B test (duration: ${hypothesis.testPlan.duration}ms)...`);
-    
+
     // Имитация A/B теста
     await this.sleep(5000);
 
     const testResult: TestResult = {
       hypothesisId: hypothesis.id,
-      testId: uuidv4(),
+      testId: randomUUID(),
       startTime: Date.now() - 5000,
       endTime: Date.now(),
-      method: 'ab_test',
+      method: "ab_test",
       metrics: {
         controlSuccessRate: 0.75,
         treatmentSuccessRate: 0.88,
@@ -404,10 +402,10 @@ export class ImprovementHypothesisEngine {
       },
       success: true,
       findings: [
-        'Treatment group outperformed control by 13%',
-        'Results are statistically significant (p < 0.05)',
+        "Treatment group outperformed control by 13%",
+        "Results are statistically significant (p < 0.05)",
       ],
-      recommendations: ['Roll out to all users'],
+      recommendations: ["Roll out to all users"],
       autoApproved: false, // Требует ручного подтверждения
     };
 
@@ -419,25 +417,25 @@ export class ImprovementHypothesisEngine {
    */
   private async runShadowTest(hypothesis: ImprovementHypothesis): Promise<TestResult> {
     this.logger.info(`Starting shadow test (no impact on production)...`);
-    
+
     await this.sleep(5000);
 
     const testResult: TestResult = {
       hypothesisId: hypothesis.id,
-      testId: uuidv4(),
+      testId: randomUUID(),
       startTime: Date.now() - 5000,
       endTime: Date.now(),
-      method: 'shadow',
+      method: "shadow",
       metrics: {
         predictedSuccessRate: 0.85,
         confidenceInterval: 0.1,
       },
       success: true,
       findings: [
-        'Shadow test completed without production impact',
-        'Predicted improvement aligns with expectations',
+        "Shadow test completed without production impact",
+        "Predicted improvement aligns with expectations",
       ],
-      recommendations: ['Proceed to canary deployment'],
+      recommendations: ["Proceed to canary deployment"],
       autoApproved: false,
     };
 
@@ -452,17 +450,17 @@ export class ImprovementHypothesisEngine {
     hypothesis: ImprovementHypothesis
   ): Promise<void> {
     this.testResults.push(result);
-    
+
     if (result.success) {
       if (result.autoApproved || !this.config.reviewRequired) {
-        hypothesis.status = 'validated';
+        hypothesis.status = "validated";
         this.logger.info(`Hypothesis ${hypothesis.title} validated automatically`);
       } else {
-        hypothesis.status = 'pending_review';
+        hypothesis.status = "pending_review";
         this.logger.info(`Hypothesis ${hypothesis.title} pending manual review`);
       }
     } else {
-      hypothesis.status = 'rejected';
+      hypothesis.status = "rejected";
       this.logger.warn(`Hypothesis ${hypothesis.title} rejected based on test results`);
     }
   }
@@ -471,27 +469,27 @@ export class ImprovementHypothesisEngine {
    * Интеграция валидированной гипотезы
    */
   async integrateHypothesis(hypothesisId: string): Promise<boolean> {
-    const hypothesis = this.hypotheses.find(h => h.id === hypothesisId);
-    
-    if (!hypothesis || hypothesis.status !== 'validated') {
+    const hypothesis = this.hypotheses.find((h) => h.id === hypothesisId);
+
+    if (!hypothesis || hypothesis.status !== "validated") {
       this.logger.warn(`Cannot integrate hypothesis ${hypothesisId}: invalid state`);
       return false;
     }
 
     // В реальной реализации здесь было бы применение изменений к коду/конфигурации
-    hypothesis.status = 'integrated';
-    
+    hypothesis.status = "integrated";
+
     // Запись опыта об успешном улучшении
     await this.experienceGatherer.recordExperience(
       `Integrated improvement: ${hypothesis.title}`,
-      { hypothesisId, status: 'integrated' },
+      { hypothesisId, status: "integrated" },
       { improvement: true },
       ExperienceType.BREAKTHROUGH,
       { successRate: 1.0 }
     );
 
     this.logger.info(`Successfully integrated hypothesis: ${hypothesis.title}`);
-    
+
     return true;
   }
 
@@ -499,18 +497,19 @@ export class ImprovementHypothesisEngine {
    * Получение гипотез по статусу
    */
   getHypotheses(filter?: {
-    status?: ImprovementHypothesis['status'];
+    status?: ImprovementHypothesis["status"];
     minPriority?: number;
     category?: string;
   }): ImprovementHypothesis[] {
     let filtered = [...this.hypotheses];
 
     if (filter?.status) {
-      filtered = filtered.filter(h => h.status === filter.status);
+      filtered = filtered.filter((h) => h.status === filter.status);
     }
 
     if (filter?.minPriority !== undefined) {
-      filtered = filtered.filter(h => h.priority >= filter.minPriority!);
+      const minPriority = filter.minPriority;
+      filtered = filtered.filter((h) => h.priority >= minPriority);
     }
 
     // Сортировка по приоритету
@@ -524,11 +523,11 @@ export class ImprovementHypothesisEngine {
    */
   getStatistics(): {
     total: number;
-    byStatus: Record<ImprovementHypothesis['status'], number>;
+    byStatus: Record<ImprovementHypothesis["status"], number>;
     integratedCount: number;
     averagePriority: number;
   } {
-    const byStatus: Record<ImprovementHypothesis['status'], number> = {
+    const byStatus: Record<ImprovementHypothesis["status"], number> = {
       draft: 0,
       pending_review: 0,
       testing: 0,
@@ -539,7 +538,7 @@ export class ImprovementHypothesisEngine {
 
     let totalPriority = 0;
 
-    this.hypotheses.forEach(h => {
+    this.hypotheses.forEach((h) => {
       byStatus[h.status]++;
       totalPriority += h.priority;
     });
@@ -548,9 +547,7 @@ export class ImprovementHypothesisEngine {
       total: this.hypotheses.length,
       byStatus,
       integratedCount: byStatus.integrated,
-      averagePriority: this.hypotheses.length > 0 
-        ? totalPriority / this.hypotheses.length 
-        : 0,
+      averagePriority: this.hypotheses.length > 0 ? totalPriority / this.hypotheses.length : 0,
     };
   }
 
@@ -558,7 +555,7 @@ export class ImprovementHypothesisEngine {
    * Утилита для задержки
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -566,7 +563,7 @@ export class ImprovementHypothesisEngine {
    */
   private averageMetric(results: Array<{ metrics: Record<string, number> }>): number {
     if (results.length === 0) return 0;
-    
+
     const sum = results.reduce((acc, r) => acc + (r.metrics.successRate || 0), 0);
     return sum / results.length;
   }
