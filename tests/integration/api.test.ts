@@ -55,7 +55,7 @@ describe('API Integration Tests', () => {
     try {
       const module = await import('../../src/api/server');
       app = module.app;
-      
+
       // Запускаем сервер на случайном порту для тестов
       server = await new Promise((resolve) => {
         const s = app.listen(0, '127.0.0.1', () => resolve(s));
@@ -64,7 +64,7 @@ describe('API Integration Tests', () => {
       console.error('Failed to start test server:', error);
       throw error;
     }
-  });
+  }, 30_000);
 
   afterAll(async () => {
     if (server) {

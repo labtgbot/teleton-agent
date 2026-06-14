@@ -55,7 +55,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:unit": "vitest run --exclude '**/integration/**' --exclude '**/e2e/**'",
-    "test:integration": "vitest run --include '**/integration/**'",
+    "test:integration": "vitest run tests/integration",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "knip": "knip",
