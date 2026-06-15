@@ -29,11 +29,60 @@ import { TOOL_EXECUTION_TIMEOUT_MS } from "../../constants/timeouts.js";
 const MCP_CONNECT_TIMEOUT_MS = 30_000;
 
 /**
+ * Allowed MCP server command binaries.
+ * Only these commands are permitted to spawn MCP stdio servers.
+ */
+const ALLOWED_MCP_COMMANDS = new Set(["npx", "node", "python3", "python", "uvx", "deno", "bun"]);
+
+/**
+ * Shell metacharacters that must not appear in a command string.
+ * Their presence indicates an attempt to inject shell commands.
+ */
+const SHELL_METACHARACTERS = /[|;&$()`{}\\]/;
+
+/**
+ * Validate an MCP server command string.
+ * Throws if the command is not in the allowlist or contains shell metacharacters.
+ */
+function validateMcpCommand(command: string): void {
+  if (SHELL_METACHARACTERS.test(command)) {
+    throw new Error(
+      `MCP server command contains shell metacharacters: "${command}". ` +
+        "Use the explicit 'args' array instead of inline command strings with pipes/redirects."
+    );
+  }
+
+  const binary = command.split(/\s+/)[0];
+
+  // Allow absolute paths only if they resolve to an allowed binary
+  if (binary.startsWith("/")) {
+    const baseName = binary.split("/").pop() ?? binary;
+    if (!ALLOWED_MCP_COMMANDS.has(baseName)) {
+      throw new Error(
+        `MCP server command "${binary}" is not in the allowed commands list. ` +
+          `Allowed: ${[...ALLOWED_MCP_COMMANDS].join(", ")}. ` +
+          "Use the explicit 'args' array for custom commands."
+      );
+    }
+  } else if (!ALLOWED_MCP_COMMANDS.has(binary)) {
+    throw new Error(
+      `MCP server command "${binary}" is not in the allowed commands list. ` +
+        `Allowed: ${[...ALLOWED_MCP_COMMANDS].join(", ")}. ` +
+        "Use the explicit 'args' array for custom commands."
+    );
+  }
+}
+
+/**
  * Parse a command string into command + args.
  * If explicit args are provided in config, uses those instead.
+ * Validates the command against the allowlist.
  */
 function parseCommand(config: McpServerConfig): { command: string; args: string[] } {
   if (!config.command) throw new Error("No command specified");
+
+  // Validate command before any parsing
+  validateMcpCommand(config.command);
 
   if (config.args) {
     return { command: config.command, args: config.args };
@@ -74,13 +123,32 @@ export async function loadMcpServers(config: McpConfig): Promise<McpConnection[]
           if (process.env[key]) safeEnv[key] = process.env[key] ?? "";
         }
 
-        // Block dangerous env vars that could enable code injection
+        // Block dangerous env vars that could enable code injection or credential theft
         const BLOCKED_ENV_KEYS = new Set([
+          // Library injection
           "LD_PRELOAD",
-          "NODE_OPTIONS",
           "LD_LIBRARY_PATH",
           "DYLD_INSERT_LIBRARIES",
+          "DYLD_LIBRARY_PATH",
+          // Node.js injection
+          "NODE_OPTIONS",
+          "NODE_EXTRA_CA_CERTS",
           "ELECTRON_RUN_AS_NODE",
+          // Python injection
+          "PYTHONPATH",
+          "PYTHONSTARTUP",
+          "PYTHONINSPECT",
+          // Ruby/Perl injection
+          "RUBYLIB",
+          "PERL5LIB",
+          "PERLLIB",
+          // SSL/TLS interception
+          "SSL_CERT_FILE",
+          "SSL_CERT_DIR",
+          // Path manipulation
+          "PATH",
+          // Home directory manipulation
+          "HOME",
         ]);
         const filteredEnv: Record<string, string> = {};
         for (const [k, v] of Object.entries(serverConfig.env ?? {})) {
@@ -140,13 +208,13 @@ export async function loadMcpServers(config: McpConfig): Promise<McpConnection[]
           return {
             serverName: name,
             client: fallbackClient,
-            scope: serverConfig.scope ?? "always",
+            scope: serverConfig.scope ?? "admin-only",
           };
         }
         throw err;
       }
 
-      return { serverName: name, client, scope: serverConfig.scope ?? "always" };
+      return { serverName: name, client, scope: serverConfig.scope ?? "admin-only" };
     })
   );
 

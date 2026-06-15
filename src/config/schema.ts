@@ -314,8 +314,8 @@ const McpServerSchema = z
     url: z.string().url().optional().describe("SSE/HTTP endpoint URL (alternative to command)"),
     scope: z
       .enum(["always", "dm-only", "group-only", "admin-only"])
-      .default("always")
-      .describe("Tool scope"),
+      .default("admin-only")
+      .describe("Tool scope — defaults to admin-only for security"),
     enabled: z.boolean().default(true).describe("Enable/disable this server"),
   })
   .refine((s) => s.command || s.url, {
@@ -326,6 +326,7 @@ const _McpObject = z.object({
   servers: z.record(z.string(), McpServerSchema).default({}),
 });
 export const McpConfigSchema = _McpObject.default(_McpObject.parse({}));
+export { McpServerSchema };
 
 const _ToolRagObject = z.object({
   enabled: z.boolean().default(true).describe("Enable semantic tool retrieval (Tool RAG)"),
