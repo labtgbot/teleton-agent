@@ -19,12 +19,17 @@ const PDEATHSIG_HELPER = new URL("../../../../bin/prctl-pdeathsig", import.meta.
 export const MAX_CONCURRENT = 10;
 let activeCount = 0;
 
-/** Registry of all spawned child processes for cleanup on agent stop. */
+/**
+ * Registry of all spawned child processes for cleanup on agent stop.
+ * Prevents orphan/zombie process accumulation when the agent exits
+ * (graceful shutdown, SIGTERM, or uncaught exception). See issue #26.
+ */
 const spawnedProcesses = new Set<ReturnType<typeof spawn>>();
 
 /**
  * Kill all spawned child processes that are still running.
- * Called during agent shutdown to prevent zombie process accumulation.
+ * Called during agent shutdown (stopAgent) and on process.exit
+ * to prevent orphan processes from surviving the agent (issue #26).
  */
 export function killAllSpawnedProcesses(): void {
   for (const child of spawnedProcesses) {
