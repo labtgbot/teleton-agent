@@ -62,15 +62,20 @@ export function createExecServiceExecutor(
 
       const security = {
         cwd: sandboxDir || undefined,
-        env: execConfig.security.env_whitelist.length > 0
-          ? buildFilteredEnv(execConfig.security.env_whitelist)
-          : undefined,
+        env:
+          execConfig.security.env_whitelist.length > 0
+            ? buildFilteredEnv(execConfig.security.env_whitelist)
+            : undefined,
       };
 
-      const result = await runCommand(command, {
-        timeout: timeout * 1000,
-        maxOutput: max_output,
-      }, security);
+      const result = await runCommand(
+        command,
+        {
+          timeout: timeout * 1000,
+          maxOutput: max_output,
+        },
+        security
+      );
 
       const status = result.timedOut ? "timeout" : result.exitCode === 0 ? "success" : "failed";
 

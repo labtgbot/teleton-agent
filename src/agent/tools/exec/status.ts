@@ -49,9 +49,10 @@ export function createExecStatusExecutor(
 
       const security = {
         cwd: sandboxDir || undefined,
-        env: execConfig.security.env_whitelist.length > 0
-          ? buildFilteredEnv(execConfig.security.env_whitelist)
-          : undefined,
+        env:
+          execConfig.security.env_whitelist.length > 0
+            ? buildFilteredEnv(execConfig.security.env_whitelist)
+            : undefined,
       };
 
       // Run each command individually so partial failures don't stop the rest
@@ -59,10 +60,14 @@ export function createExecStatusExecutor(
       const startTime = Date.now();
 
       for (const { key, command } of STATUS_COMMANDS) {
-        const result = await runCommand(command, {
-          timeout: 10000,
-          maxOutput: max_output,
-        }, security);
+        const result = await runCommand(
+          command,
+          {
+            timeout: 10000,
+            maxOutput: max_output,
+          },
+          security
+        );
         results[key] =
           result.exitCode === 0 ? result.stdout.trim() : `(failed: ${result.stderr.trim()})`;
       }

@@ -20,7 +20,8 @@ const INSTALL_COMMANDS: Record<string, (pkgs: string) => string> = {
 
 export const execInstallTool: Tool = {
   name: "exec_install",
-  description: "Install packages using a specified package manager (apt, pip, npm, or docker pull). Constructs the correct install command automatically.",
+  description:
+    "Install packages using a specified package manager (apt, pip, npm, or docker pull). Constructs the correct install command automatically.",
   parameters: Type.Object({
     manager: Type.Union(
       [Type.Literal("apt"), Type.Literal("pip"), Type.Literal("npm"), Type.Literal("docker")],
@@ -70,15 +71,20 @@ export function createExecInstallExecutor(
 
       const security = {
         cwd: sandboxDir || undefined,
-        env: execConfig.security.env_whitelist.length > 0
-          ? buildFilteredEnv(execConfig.security.env_whitelist)
-          : undefined,
+        env:
+          execConfig.security.env_whitelist.length > 0
+            ? buildFilteredEnv(execConfig.security.env_whitelist)
+            : undefined,
       };
 
-      const result = await runCommand(command, {
-        timeout: timeout * 1000,
-        maxOutput: max_output,
-      }, security);
+      const result = await runCommand(
+        command,
+        {
+          timeout: timeout * 1000,
+          maxOutput: max_output,
+        },
+        security
+      );
 
       const status = result.timedOut ? "timeout" : result.exitCode === 0 ? "success" : "failed";
 

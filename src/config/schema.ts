@@ -371,7 +371,9 @@ const _ExecSecurityMeta = z.object({
   sandbox_dir: z
     .string()
     .default("/tmp/teleton-exec-sandbox")
-    .describe("Restricted working directory for command execution (prevents reading sensitive files)"),
+    .describe(
+      "Restricted working directory for command execution (prevents reading sensitive files)"
+    ),
   env_whitelist: z
     .array(z.string())
     .default(["HOME", "PATH", "LANG", "TERM", "USER", "SHELL"])
@@ -409,9 +411,11 @@ const _ExecObject = z.object({
     ),
   limits: _ExecLimitsObject.default(_ExecLimitsObject.parse({})),
   audit: _ExecAuditObject.default(_ExecAuditObject.parse({})),
-  security: _ExecSecurityMeta.default(_ExecSecurityMeta.parse({})).describe(
-    "Security controls for exec mode (confirmation prompts, sandboxing, env restrictions)"
-  ),
+  security: _ExecSecurityMeta
+    .default(_ExecSecurityMeta.parse({}))
+    .describe(
+      "Security controls for exec mode (confirmation prompts, sandboxing, env restrictions)"
+    ),
 });
 
 const _CapabilitiesObject = z.object({
