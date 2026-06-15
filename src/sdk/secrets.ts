@@ -7,21 +7,75 @@
  *   3. pluginConfig          (config.yaml)      — legacy/manual
  *
  * Secrets store: ~/.teleton/plugins/data/<plugin-name>.secrets.json
+ * Secrets are encrypted at rest with AES-256-GCM using TELETON_SECRETS_KEY
+ * (falls back to TELETON_WALLET_KEY if not set).
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
+import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 import { TELETON_ROOT } from "../workspace/paths.js";
 import { PluginSDKError } from "@teleton-agent/sdk";
 import type { SecretsSDK, PluginLogger } from "@teleton-agent/sdk";
 
 const SECRETS_DIR = join(TELETON_ROOT, "plugins", "data");
 
+// ─── Encryption helpers ──────────────────────────────────────────────
+
+interface EncryptedFile {
+  encrypted: true;
+  iv: string;
+  tag: string;
+  ciphertext: string;
+}
+
+/**
+ * Resolve the encryption key for secrets.
+ * Prefers TELETON_SECRETS_KEY, falls back to TELETON_WALLET_KEY.
+ * Returns null only if neither is configured (legacy unencrypted mode).
+ */
+function resolveSecretsEncryptionKey(): Buffer | null {
+  const envKey = process.env.TELETON_SECRETS_KEY || process.env.TELETON_WALLET_KEY;
+  if (!envKey) return null;
+  if (envKey.length !== 64 || !/^[0-9a-fA-F]+$/.test(envKey)) {
+    throw new Error(
+      "TELETON_SECRETS_KEY / TELETON_WALLET_KEY must be a 64-character hex string (32 bytes)."
+    );
+  }
+  return Buffer.from(envKey, "hex");
+}
+
+function encryptJson(data: Record<string, string>, key: Buffer): EncryptedFile {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const plaintext = JSON.stringify(data);
+  const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return {
+    encrypted: true,
+    iv: iv.toString("hex"),
+    tag: tag.toString("hex"),
+    ciphertext: encrypted.toString("hex"),
+  };
+}
+
+function decryptJson(file: EncryptedFile, key: Buffer): Record<string, string> {
+  const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(file.iv, "hex"));
+  decipher.setAuthTag(Buffer.from(file.tag, "hex"));
+  const decrypted = Buffer.concat([
+    decipher.update(Buffer.from(file.ciphertext, "hex")),
+    decipher.final(),
+  ]);
+  return JSON.parse(decrypted.toString("utf8")) as Record<string, string>;
+}
+
+// ─── File I/O ─────────────────────────────────────────────────────────
+
 function getSecretsPath(pluginName: string): string {
   return join(SECRETS_DIR, `${pluginName}.secrets.json`);
 }
 
-/** Read persisted secrets from the JSON file */
+/** Read persisted secrets from the JSON file (handles both encrypted and legacy plaintext) */
 function readSecretsFile(pluginName: string): Record<string, string> {
   const filePath = getSecretsPath(pluginName);
   try {
@@ -29,6 +83,23 @@ function readSecretsFile(pluginName: string): Record<string, string> {
     const raw = readFileSync(filePath, "utf-8");
     const parsed = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null) return {};
+
+    // Encrypted format
+    if (parsed.encrypted === true) {
+      const key = resolveSecretsEncryptionKey();
+      if (!key) {
+        // Key not configured — cannot decrypt. Return empty and log warning.
+        return {};
+      }
+      try {
+        return decryptJson(parsed as EncryptedFile, key);
+      } catch {
+        // Decryption failed — wrong key or corrupted file
+        return {};
+      }
+    }
+
+    // Legacy plaintext format — return as-is (will be re-encrypted on next write)
     return parsed as Record<string, string>;
   } catch {
     return {};
@@ -38,13 +109,23 @@ function readSecretsFile(pluginName: string): Record<string, string> {
 /**
  * Write a secret to the persisted secrets file.
  * Used by admin commands (/plugin set).
+ * Secrets are encrypted at rest when an encryption key is available.
  */
 export function writePluginSecret(pluginName: string, key: string, value: string): void {
   mkdirSync(SECRETS_DIR, { recursive: true, mode: 0o700 });
   const filePath = getSecretsPath(pluginName);
   const existing = readSecretsFile(pluginName);
   existing[key] = value;
-  writeFileSync(filePath, JSON.stringify(existing, null, 2), { mode: 0o600 });
+
+  const encKey = resolveSecretsEncryptionKey();
+  if (encKey) {
+    const encrypted = encryptJson(existing, encKey);
+    writeFileSync(filePath, JSON.stringify(encrypted, null, 2), { mode: 0o600 });
+  } else {
+    // Fallback: write plaintext (same as before — for backwards compatibility
+    // when no encryption key is configured at all)
+    writeFileSync(filePath, JSON.stringify(existing, null, 2), { mode: 0o600 });
+  }
 }
 
 /**
@@ -56,7 +137,14 @@ export function deletePluginSecret(pluginName: string, key: string): boolean {
   if (!(key in existing)) return false;
   delete existing[key];
   const filePath = getSecretsPath(pluginName);
-  writeFileSync(filePath, JSON.stringify(existing, null, 2), { mode: 0o600 });
+
+  const encKey = resolveSecretsEncryptionKey();
+  if (encKey) {
+    const encrypted = encryptJson(existing, encKey);
+    writeFileSync(filePath, JSON.stringify(encrypted, null, 2), { mode: 0o600 });
+  } else {
+    writeFileSync(filePath, JSON.stringify(existing, null, 2), { mode: 0o600 });
+  }
   return true;
 }
 

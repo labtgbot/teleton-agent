@@ -106,6 +106,13 @@ function hardenDirectory(dirPath: string, fileMode: number): number {
     const entries = readdirSync(dirPath, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = join(dirPath, entry.name);
+
+      // SECURITY: Skip symlinks to avoid modifying files outside workspace (H-6)
+      if (entry.isSymbolicLink()) {
+        log.debug(`Skipping symlink during permission hardening: ${fullPath}`);
+        continue;
+      }
+
       if (entry.isFile()) {
         try {
           const stat = statSync(fullPath);

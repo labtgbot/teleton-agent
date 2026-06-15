@@ -1,6 +1,14 @@
 // src/workspace/manager.ts
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from "fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  copyFileSync,
+  constants,
+  chmodSync,
+} from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { TELETON_ROOT, WORKSPACE_ROOT, WORKSPACE_PATHS } from "./paths.js";
@@ -56,13 +64,13 @@ export async function ensureWorkspace(config?: WorkspaceConfig): Promise<Workspa
 
   // Create base teleton directory
   if (!existsSync(TELETON_ROOT)) {
-    mkdirSync(TELETON_ROOT, { recursive: true });
+    mkdirSync(TELETON_ROOT, { recursive: true, mode: 0o700 });
     if (!silent) log.info(`Created Teleton root at ${TELETON_ROOT}`);
   }
 
   // Create workspace directory
   if (!existsSync(WORKSPACE_ROOT)) {
-    mkdirSync(WORKSPACE_ROOT, { recursive: true });
+    mkdirSync(WORKSPACE_ROOT, { recursive: true, mode: 0o700 });
     if (!silent) log.info(`Created workspace at ${WORKSPACE_ROOT}`);
   }
 
@@ -77,7 +85,7 @@ export async function ensureWorkspace(config?: WorkspaceConfig): Promise<Workspa
 
   for (const dir of directories) {
     if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
     }
   }
 
@@ -130,7 +138,11 @@ async function bootstrapTemplates(workspace: Workspace, silent = false): Promise
     if (!existsSync(template.path)) {
       const templateSource = join(TEMPLATES_DIR, template.name);
       if (existsSync(templateSource)) {
-        copyFileSync(templateSource, template.path);
+        // SECURITY: Use COPYFILE_EXCL to prevent writing through symlinks
+        // if a race condition creates one between existsSync and copyFileSync
+        copyFileSync(templateSource, template.path, constants.COPYFILE_EXCL);
+        // SECURITY: Set restrictive permissions on copied template
+        chmodSync(template.path, 0o600);
         if (!silent) log.info(`Created ${template.name}`);
       }
     }
@@ -162,9 +174,9 @@ export function writeFileIfMissing(path: string, content: string): void {
   if (!existsSync(path)) {
     const dir = dirname(path);
     if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
     }
-    writeFileSync(path, content, "utf-8");
+    writeFileSync(path, content, { encoding: "utf-8", mode: 0o600 });
   }
 }
 

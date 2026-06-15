@@ -1,6 +1,6 @@
 // src/workspace/validator.ts
 
-import { existsSync, lstatSync, readdirSync } from "fs";
+import { lstatSync, readdirSync } from "fs";
 import { resolve, normalize, relative, extname, basename } from "path";
 import { homedir } from "os";
 import { WORKSPACE_ROOT, ALLOWED_EXTENSIONS, BLOCKED_EXTENSIONS, MAX_FILE_SIZES } from "./paths.js";
@@ -90,20 +90,24 @@ export function validatePath(inputPath: string, allowCreate: boolean = false): V
   // double-encoding bypass attacks (%252e%252e → %2e%2e → ..)
   const decodedPath = decodeRecursive(trimmedPath);
 
+  // SECURITY: Re-normalize after decoding to catch payloads like
+  // "foo%2e%2e%2fbar" which decodes to "foo../bar" → normalizes to "bar"
+  const normalizedDecoded = normalize(decodedPath);
+
   // Normalize and resolve the path
   let absolutePath: string;
 
   // Handle different input formats
-  if (decodedPath.startsWith("/")) {
+  if (normalizedDecoded.startsWith("/")) {
     // Absolute path - must be within workspace
-    absolutePath = resolve(normalize(decodedPath));
-  } else if (decodedPath.startsWith("~/")) {
+    absolutePath = resolve(normalize(normalizedDecoded));
+  } else if (normalizedDecoded.startsWith("~/")) {
     // SECURITY FIX: Allow home-relative paths but validate they're in workspace
-    const expanded = decodedPath.replace(/^~(?=$|[\\/])/, homedir());
+    const expanded = normalizedDecoded.replace(/^~(?=$|[\\/])/, homedir());
     absolutePath = resolve(expanded);
   } else {
     // Relative path - assume relative to workspace root
-    absolutePath = resolve(WORKSPACE_ROOT, normalize(decodedPath));
+    absolutePath = resolve(WORKSPACE_ROOT, normalize(normalizedDecoded));
   }
 
   // CRITICAL: Ensure path is within workspace
@@ -118,8 +122,18 @@ export function validatePath(inputPath: string, allowCreate: boolean = false): V
     );
   }
 
-  // Check if path exists
-  const exists = existsSync(absolutePath);
+  // SECURITY: Single atomic lstatSync call to prevent TOCTOU race.
+  // existsSync → lstatSync creates a window where an attacker can swap
+  // a regular file for a symlink (or vice versa) between the two calls.
+  let stats: ReturnType<typeof lstatSync> | null = null;
+  let exists = false;
+
+  try {
+    stats = lstatSync(absolutePath);
+    exists = true;
+  } catch {
+    // File/directory does not exist
+  }
 
   if (!exists && !allowCreate) {
     throw new WorkspaceSecurityError(
@@ -128,24 +142,19 @@ export function validatePath(inputPath: string, allowCreate: boolean = false): V
     );
   }
 
-  // SECURITY FIX: Use lstatSync() instead of statSync() to detect symlinks
-  // (statSync follows symlinks, lstatSync does not)
-  if (exists) {
-    const stats = lstatSync(absolutePath);
-
-    if (stats.isSymbolicLink()) {
-      throw new WorkspaceSecurityError(
-        `Access denied: Symbolic links are not allowed for security reasons.`,
-        inputPath
-      );
-    }
+  // SECURITY: Use lstatSync() (not statSync) to detect symlinks
+  if (stats?.isSymbolicLink()) {
+    throw new WorkspaceSecurityError(
+      `Access denied: Symbolic links are not allowed for security reasons.`,
+      inputPath
+    );
   }
 
   return {
     absolutePath,
     relativePath,
     exists,
-    isDirectory: exists ? lstatSync(absolutePath).isDirectory() : false,
+    isDirectory: stats ? stats.isDirectory() : false,
     extension: extname(absolutePath).toLowerCase(),
     filename: basename(absolutePath),
   };

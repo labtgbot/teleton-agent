@@ -196,19 +196,14 @@ describe("saveWallet / loadWallet (encryption integration)", () => {
     }
   });
 
-  it("saves plaintext when no encryption key is set", () => {
+  it("throws when no encryption key is set (plaintext saving is rejected)", () => {
     delete process.env.TELETON_WALLET_KEY;
     mockFs.existsSync.mockReturnValue(true);
 
-    saveWallet(TEST_WALLET);
-
-    expect(mockFs.writeFileSync).toHaveBeenCalledOnce();
-    const written = mockFs.writeFileSync.mock.calls[0][1] as string;
-    const parsed = JSON.parse(written);
-    // Plaintext format: mnemonic array is visible
-    expect(parsed.encrypted).toBeUndefined();
-    expect(Array.isArray(parsed.mnemonic)).toBe(true);
-    expect(parsed.mnemonic).toEqual(TEST_MNEMONIC);
+    // SECURITY: Plaintext wallet saving is no longer allowed.
+    // An encryption key (TELETON_WALLET_KEY) is mandatory.
+    expect(() => saveWallet(TEST_WALLET)).toThrow(/TELETON_WALLET_KEY is required/);
+    expect(mockFs.writeFileSync).not.toHaveBeenCalled();
   });
 
   it("saves encrypted format when key is set", () => {

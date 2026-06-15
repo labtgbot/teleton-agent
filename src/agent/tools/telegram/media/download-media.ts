@@ -6,10 +6,14 @@ import type { Tool, ToolExecutor, ToolResult } from "../../types.js";
 import {
   validateWritePath,
   extensionToFileType,
+  sanitizeFilename,
   WorkspaceSecurityError,
 } from "../../../../workspace/index.js";
 import { getErrorMessage } from "../../../../utils/errors.js";
 import { createLogger } from "../../../../utils/logger.js";
+
+/** Maximum allowed media download size (50 MB) */
+const MAX_MEDIA_DOWNLOAD_SIZE = 50 * 1024 * 1024;
 
 const log = createLogger("Tools");
 
@@ -128,16 +132,29 @@ export const telegramDownloadMediaExecutor: ToolExecutor<DownloadMediaParams> = 
       mediaType = "gif";
     }
 
+    // SECURITY: Reject filenames containing path separators or traversal
+    // sequences. An attacker could use "../../SOUL.md" to escape the
+    // downloads/ directory. (H-1)
+    if (filename && (/[/\\]/.test(filename) || filename.includes(".."))) {
+      return {
+        success: false,
+        error: `Invalid filename: path separators and '..' sequences are not allowed.`,
+      };
+    }
+
+    // Sanitize user-provided filename to remove dangerous characters (M-4)
+    const safeFilename = filename ? sanitizeFilename(filename) : undefined;
+
     // Validate custom filename extension matches media type (security check)
-    if (filename) {
-      const providedExt = extname(filename).toLowerCase();
+    if (safeFilename) {
+      const providedExt = extname(safeFilename).toLowerCase();
       const expectedExt = extension.toLowerCase();
 
       // Case 1: Media has extension but filename doesn't
       if (expectedExt && !providedExt) {
         return {
           success: false,
-          error: `Missing extension: filename '${filename}' must have extension '${expectedExt}' for ${mediaType}`,
+          error: `Missing extension: filename '${safeFilename}' must have extension '${expectedExt}' for ${mediaType}`,
         };
       }
 
@@ -145,7 +162,7 @@ export const telegramDownloadMediaExecutor: ToolExecutor<DownloadMediaParams> = 
       if (providedExt && !expectedExt) {
         return {
           success: false,
-          error: `Unexpected extension: filename '${filename}' has extension '${providedExt}' but ${mediaType} does not require one`,
+          error: `Unexpected extension: filename '${safeFilename}' has extension '${providedExt}' but ${mediaType} does not require one`,
         };
       }
 
@@ -160,8 +177,9 @@ export const telegramDownloadMediaExecutor: ToolExecutor<DownloadMediaParams> = 
       }
     }
 
-    // Generate filename
-    const finalFilename = filename || `${chatId}_${messageId}_${Date.now()}${extension}`;
+    // Generate filename (sanitize generated name too for safety)
+    const generatedName = `${chatId}_${messageId}_${Date.now()}${extension}`;
+    const finalFilename = safeFilename || sanitizeFilename(generatedName);
 
     // Validate workspace path for downloads/
     const downloadPath = `downloads/${finalFilename}`;
@@ -189,7 +207,15 @@ export const telegramDownloadMediaExecutor: ToolExecutor<DownloadMediaParams> = 
       };
     }
 
-    // Save to file
+    // SECURITY: Enforce size limit to prevent memory exhaustion (H-2)
+    if (buffer.length > MAX_MEDIA_DOWNLOAD_SIZE) {
+      return {
+        success: false,
+        error: `Media too large: ${buffer.length} bytes exceeds maximum of ${MAX_MEDIA_DOWNLOAD_SIZE} bytes (${Math.round(MAX_MEDIA_DOWNLOAD_SIZE / 1024 / 1024)} MB)`,
+      };
+    }
+
+    // Save to file with restrictive permissions (H-3)
     writeFileSync(validatedPath.absolutePath, buffer, { mode: 0o600 });
 
     return {

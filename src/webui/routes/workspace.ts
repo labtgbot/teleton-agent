@@ -229,9 +229,10 @@ export function createWorkspaceRoutes(_deps: WebUIServerDeps) {
         "Cache-Control": "private, max-age=60",
       };
 
-      // SVG security: sandbox to prevent script execution if opened directly
+      // SVG security: strict CSP to prevent script execution via foreignObject etc.
       if (validated.extension === ".svg") {
-        headers["Content-Security-Policy"] = "sandbox";
+        headers["Content-Security-Policy"] =
+          "default-src 'none'; img-src data:; script-src 'none'; sandbox";
       }
 
       return c.body(buffer, 200, headers);
@@ -267,6 +268,28 @@ export function createWorkspaceRoutes(_deps: WebUIServerDeps) {
         return c.json(response, 413);
       }
 
+      // SECURITY: Only allow reading safe text-based file types (M-3).
+      // This prevents stored XSS if an HTML/JS file is uploaded to workspace.
+      const READABLE_EXTENSIONS = new Set([
+        ".txt",
+        ".md",
+        ".json",
+        ".csv",
+        ".log",
+        ".yaml",
+        ".yml",
+        ".xml",
+        ".toml",
+        ".ini",
+      ]);
+      if (!READABLE_EXTENSIONS.has(validated.extension)) {
+        const response: APIResponse = {
+          success: false,
+          error: `File type '${validated.extension}' is not allowed for reading. Allowed: ${[...READABLE_EXTENSIONS].join(", ")}`,
+        };
+        return c.json(response, 415);
+      }
+
       const content = readFileSync(validated.absolutePath, "utf-8");
 
       const response: APIResponse<{ content: string; size: number }> = {
@@ -294,11 +317,25 @@ export function createWorkspaceRoutes(_deps: WebUIServerDeps) {
 
       const validated = validateWritePath(body.path, "text");
 
+      // SECURITY: Re-check for symlinks right before write to mitigate
+      // TOCTOU race (file swapped between validation and write).
+      // Only check if the file already exists (new files won't have a symlink yet).
+      if (validated.exists) {
+        const writeStats = lstatSync(validated.absolutePath);
+        if (writeStats.isSymbolicLink()) {
+          const response: APIResponse = {
+            success: false,
+            error: "Access denied: symbolic links are not allowed",
+          };
+          return c.json(response, 403);
+        }
+      }
+
       // Ensure parent directory exists
       const parentDir = join(validated.absolutePath, "..");
-      mkdirSync(parentDir, { recursive: true });
+      mkdirSync(parentDir, { recursive: true, mode: 0o700 });
 
-      writeFileSync(validated.absolutePath, body.content, "utf-8");
+      writeFileSync(validated.absolutePath, body.content, { mode: 0o600 });
 
       const response: APIResponse<{ message: string }> = {
         success: true,
@@ -321,7 +358,7 @@ export function createWorkspaceRoutes(_deps: WebUIServerDeps) {
       }
 
       const validated = validateDirectory(body.path);
-      mkdirSync(validated.absolutePath, { recursive: true });
+      mkdirSync(validated.absolutePath, { recursive: true, mode: 0o700 });
 
       const response: APIResponse<{ message: string }> = {
         success: true,
@@ -344,6 +381,16 @@ export function createWorkspaceRoutes(_deps: WebUIServerDeps) {
       }
 
       const validated = validatePath(body.path, false);
+
+      // SECURITY: Re-check for symlinks right before delete to mitigate TOCTOU
+      const deleteStats = lstatSync(validated.absolutePath);
+      if (deleteStats.isSymbolicLink()) {
+        const response: APIResponse = {
+          success: false,
+          error: "Access denied: symbolic links are not allowed",
+        };
+        return c.json(response, 403);
+      }
 
       if (validated.isDirectory && !body.recursive) {
         // Check if directory is empty
@@ -385,9 +432,19 @@ export function createWorkspaceRoutes(_deps: WebUIServerDeps) {
       const fromValidated = validatePath(body.from, false);
       const toValidated = validatePath(body.to, true);
 
+      // SECURITY: Re-check for symlinks right before rename to mitigate TOCTOU
+      const renameStats = lstatSync(fromValidated.absolutePath);
+      if (renameStats.isSymbolicLink()) {
+        const response: APIResponse = {
+          success: false,
+          error: "Access denied: symbolic links are not allowed",
+        };
+        return c.json(response, 403);
+      }
+
       // Ensure target parent directory exists
       const parentDir = join(toValidated.absolutePath, "..");
-      mkdirSync(parentDir, { recursive: true });
+      mkdirSync(parentDir, { recursive: true, mode: 0o700 });
 
       renameSync(fromValidated.absolutePath, toValidated.absolutePath);
 

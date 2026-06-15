@@ -116,7 +116,10 @@ describe("GET /workspace/raw", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
-    expect(res.headers.get("Content-Security-Policy")).toBe("sandbox");
+    // SECURITY: SVG files get strict CSP to prevent script execution via foreignObject
+    expect(res.headers.get("Content-Security-Policy")).toBe(
+      "default-src 'none'; img-src data:; script-src 'none'; sandbox"
+    );
   });
 
   it("returns 415 for unsupported file types", async () => {
