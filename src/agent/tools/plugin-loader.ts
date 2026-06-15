@@ -46,7 +46,7 @@ import type {
   PluginMessageEvent,
   PluginCallbackEvent,
 } from "@teleton-agent/sdk";
-import { createLogger } from "../../utils/logger.js";
+import { createLogger, isVerbose } from "../../utils/logger.js";
 
 const log = createLogger("PluginLoader");
 
@@ -159,19 +159,21 @@ export function adaptPlugin(
       debug: () => {},
     };
     const secretsCheck = createSecretsSDK(pluginName, pluginConfig, dummyLogger);
-    const missing: string[] = [];
+    let missingCount = 0;
     for (const [key, decl] of Object.entries(
       manifest.secrets as Record<string, SecretDeclaration>
     )) {
       if (decl.required && !secretsCheck.has(key)) {
-        missing.push(`${key} — ${decl.description}`);
+        missingCount++;
+        // Only log individual key names at debug level (requires /verbose)
+        pluginLog.debug(`Missing required secret for ${pluginName}`);
       }
     }
-    if (missing.length > 0) {
+    if (missingCount > 0) {
+      const detailHint = isVerbose() ? "" : " (enable /verbose for details)";
       pluginLog.warn(
-        `Missing required secrets:\n` +
-          missing.map((m) => `   • ${m}`).join("\n") +
-          `\n   Set via: /plugin set ${pluginName} <key> <value>`
+        `Plugin "${pluginName}" has ${missingCount} missing required secret(s).` +
+          `${detailHint} Set via: /plugin set ${pluginName} <key> <value>`
       );
     }
   }

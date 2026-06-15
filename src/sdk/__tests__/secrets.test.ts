@@ -79,7 +79,10 @@ describe("SecretsSDK resolution chain", () => {
     const sdk = createSecretsSDK("myplugin", { API_KEY: "from-config" }, mockLog);
 
     expect(sdk.get("API_KEY")).toBe("from-env");
-    expect(mockLog.debug).toHaveBeenCalledWith(expect.stringContaining("env var"));
+    // Debug log should NOT contain key name or env var name
+    expect(mockLog.debug).toHaveBeenCalledWith(expect.stringContaining("myplugin"));
+    expect(mockLog.debug).not.toHaveBeenCalledWith(expect.stringContaining("API_KEY"));
+    expect(mockLog.debug).not.toHaveBeenCalledWith(expect.stringContaining("MYPLUGIN_API_KEY"));
   });
 
   it("falls back to secrets file when no env var", () => {
@@ -89,14 +92,16 @@ describe("SecretsSDK resolution chain", () => {
     const sdk = createSecretsSDK("myplugin", { API_KEY: "from-config" }, mockLog);
 
     expect(sdk.get("API_KEY")).toBe("from-file");
-    expect(mockLog.debug).toHaveBeenCalledWith(expect.stringContaining("secrets store"));
+    expect(mockLog.debug).toHaveBeenCalledWith(expect.stringContaining("myplugin"));
+    expect(mockLog.debug).not.toHaveBeenCalledWith(expect.stringContaining("API_KEY"));
   });
 
   it("falls back to pluginConfig when no env var and no file", () => {
     const sdk = createSecretsSDK("myplugin", { API_KEY: "from-config" }, mockLog);
 
     expect(sdk.get("API_KEY")).toBe("from-config");
-    expect(mockLog.debug).toHaveBeenCalledWith(expect.stringContaining("pluginConfig"));
+    expect(mockLog.debug).toHaveBeenCalledWith(expect.stringContaining("myplugin"));
+    expect(mockLog.debug).not.toHaveBeenCalledWith(expect.stringContaining("API_KEY"));
   });
 
   it("returns undefined when secret not found anywhere", () => {
@@ -149,7 +154,9 @@ describe("SecretsSDK.require()", () => {
     } catch (err) {
       expect(err).toBeInstanceOf(PluginSDKError);
       expect((err as PluginSDKError).code).toBe("SECRET_NOT_FOUND");
-      expect((err as PluginSDKError).message).toContain("MISSING_KEY");
+      // Error message should NOT leak the key name
+      expect((err as PluginSDKError).message).not.toContain("MISSING_KEY");
+      expect((err as PluginSDKError).message).toContain("myplugin");
       expect((err as PluginSDKError).message).toContain("/plugin set");
     }
   });

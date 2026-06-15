@@ -80,21 +80,21 @@ export function createSecretsSDK(
     const envKey = `${envPrefix}_${key.toUpperCase()}`;
     const envValue = process.env[envKey];
     if (envValue) {
-      log.debug(`Secret "${key}" resolved from env var ${envKey}`);
+      log.debug(`Secret resolved for ${pluginName}`);
       return envValue;
     }
 
     // 2. Persisted secrets store (set via /plugin set)
     const stored = readSecretsFile(pluginName);
     if (key in stored && stored[key]) {
-      log.debug(`Secret "${key}" resolved from secrets store`);
+      log.debug(`Secret resolved for ${pluginName}`);
       return stored[key];
     }
 
     // 3. pluginConfig from config.yaml (legacy/manual)
     const configValue = pluginConfig[key];
     if (configValue !== undefined && configValue !== null) {
-      log.debug(`Secret "${key}" resolved from pluginConfig`);
+      log.debug(`Secret resolved for ${pluginName}`);
       return String(configValue);
     }
 
@@ -108,7 +108,7 @@ export function createSecretsSDK(
       const value = get(key);
       if (!value) {
         throw new PluginSDKError(
-          `Missing required secret "${key}". Set it via: /plugin set ${pluginName} ${key} <value>`,
+          `Missing required secret for plugin "${pluginName}". Set it via: /plugin set ${pluginName} <key> <value>`,
           "SECRET_NOT_FOUND"
         );
       }
