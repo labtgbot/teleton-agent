@@ -292,7 +292,7 @@ export function createWorkspaceRoutes(_deps: WebUIServerDeps) {
         return c.json(response, 400);
       }
 
-      const validated = validateWritePath(body.path);
+      const validated = validateWritePath(body.path, "text");
 
       // Ensure parent directory exists
       const parentDir = join(validated.absolutePath, "..");

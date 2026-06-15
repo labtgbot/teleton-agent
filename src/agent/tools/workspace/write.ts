@@ -5,7 +5,11 @@ import { writeFileSync, appendFileSync, mkdirSync, existsSync } from "fs";
 import { dirname } from "path";
 import { MAX_WRITE_SIZE } from "../../../constants/limits.js";
 import type { Tool, ToolExecutor, ToolResult } from "../types.js";
-import { validateWritePath, WorkspaceSecurityError } from "../../../workspace/index.js";
+import {
+  validateWritePath,
+  WorkspaceSecurityError,
+  extensionToFileType,
+} from "../../../workspace/index.js";
 import { getErrorMessage } from "../../../utils/errors.js";
 
 interface WorkspaceWriteParams {
@@ -54,8 +58,9 @@ export const workspaceWriteExecutor: ToolExecutor<WorkspaceWriteParams> = async 
   try {
     const { path, content, encoding = "utf-8", append = false, createDirs = true } = params;
 
-    // Validate the path (no extension enforcement - fix from audit)
-    const validated = validateWritePath(path);
+    // Validate the path with extension enforcement (issue #28)
+    const fileType = extensionToFileType(path);
+    const validated = validateWritePath(path, fileType);
 
     // Create parent directories if needed
     const parentDir = dirname(validated.absolutePath);

@@ -3,6 +3,8 @@ export {
   WORKSPACE_ROOT,
   WORKSPACE_PATHS,
   ALLOWED_EXTENSIONS,
+  BLOCKED_EXTENSIONS,
+  extensionToFileType,
   MAX_FILE_SIZES,
 } from "./paths.js";
 
