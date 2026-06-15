@@ -8,9 +8,8 @@ vi.mock("node:fs", () => ({
   rmSync: vi.fn(),
   renameSync: vi.fn(),
   readdirSync: vi.fn(() => []),
-  statSync: vi.fn(),
-  existsSync: vi.fn(() => true),
   lstatSync: vi.fn(),
+  existsSync: vi.fn(() => true),
 }));
 
 vi.mock("../../workspace/validator.js", () => ({
@@ -46,7 +45,7 @@ vi.mock("../../utils/logger.js", () => ({
   })),
 }));
 
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, lstatSync } from "node:fs";
 import { validateReadPath, WorkspaceSecurityError } from "../../workspace/validator.js";
 import { createWorkspaceRoutes } from "../routes/workspace.js";
 import type { WebUIServerDeps } from "../types.js";
@@ -70,7 +69,7 @@ describe("GET /workspace/raw", () => {
       extension: ".png",
       filename: "test.png",
     });
-    vi.mocked(statSync).mockReturnValue({ size: 1024 } as any);
+    vi.mocked(lstatSync).mockReturnValue({ size: 1024, isSymbolicLink: () => false } as any);
     vi.mocked(readFileSync).mockReturnValue(buf as any);
 
     const res = await app.request("/workspace/raw?path=test.png");
@@ -91,7 +90,7 @@ describe("GET /workspace/raw", () => {
       extension: ".jpg",
       filename: "photo.jpg",
     });
-    vi.mocked(statSync).mockReturnValue({ size: 1024 } as any);
+    vi.mocked(lstatSync).mockReturnValue({ size: 1024, isSymbolicLink: () => false } as any);
     vi.mocked(readFileSync).mockReturnValue(buf as any);
 
     const res = await app.request("/workspace/raw?path=photo.jpg");
@@ -110,7 +109,7 @@ describe("GET /workspace/raw", () => {
       extension: ".svg",
       filename: "icon.svg",
     });
-    vi.mocked(statSync).mockReturnValue({ size: 256 } as any);
+    vi.mocked(lstatSync).mockReturnValue({ size: 256, isSymbolicLink: () => false } as any);
     vi.mocked(readFileSync).mockReturnValue(buf as any);
 
     const res = await app.request("/workspace/raw?path=icon.svg");
@@ -169,8 +168,9 @@ describe("GET /workspace/raw", () => {
       extension: ".png",
       filename: "huge.png",
     });
-    vi.mocked(statSync).mockReturnValue({
+    vi.mocked(lstatSync).mockReturnValue({
       size: 6 * 1024 * 1024,
+      isSymbolicLink: () => false,
     } as any);
 
     const res = await app.request("/workspace/raw?path=huge.png");
@@ -179,5 +179,84 @@ describe("GET /workspace/raw", () => {
     const data = await res.json();
     expect(data.success).toBe(false);
     expect(data.error).toContain("5MB");
+  });
+
+  it("returns 403 when file is a symlink (TOCTOU bypass attempt)", async () => {
+    vi.mocked(validateReadPath).mockReturnValue({
+      absolutePath: "/tmp/test-workspace/leaked.png",
+      relativePath: "leaked.png",
+      exists: true,
+      isDirectory: false,
+      extension: ".png",
+      filename: "leaked.png",
+    });
+    // lstatSync detects the symlink that was swapped in after validateReadPath
+    vi.mocked(lstatSync).mockReturnValue({
+      size: 1024,
+      isSymbolicLink: () => true,
+    } as any);
+
+    const res = await app.request("/workspace/raw?path=leaked");
+
+    expect(res.status).toBe(403);
+    const data = await res.json();
+    expect(data.success).toBe(false);
+    expect(data.error).toContain("symbolic");
+  });
+});
+
+describe("GET /workspace/read — symlink bypass prevention", () => {
+  let app: Hono;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    app = new Hono();
+    app.route("/workspace", createWorkspaceRoutes({} as WebUIServerDeps));
+  });
+
+  it("returns 403 when file is a symlink (TOCTOU bypass attempt)", async () => {
+    vi.mocked(validateReadPath).mockReturnValue({
+      absolutePath: "/tmp/test-workspace/leaked",
+      relativePath: "leaked",
+      exists: true,
+      isDirectory: false,
+      extension: ".txt",
+      filename: "leaked",
+    });
+    // lstatSync detects the symlink that was swapped in after validateReadPath
+    vi.mocked(lstatSync).mockReturnValue({
+      size: 1024,
+      isSymbolicLink: () => true,
+    } as any);
+
+    const res = await app.request("/workspace/read?path=leaked");
+
+    expect(res.status).toBe(403);
+    const data = await res.json();
+    expect(data.success).toBe(false);
+    expect(data.error).toContain("symbolic");
+  });
+
+  it("serves regular file content when not a symlink", async () => {
+    vi.mocked(validateReadPath).mockReturnValue({
+      absolutePath: "/tmp/test-workspace/readme.txt",
+      relativePath: "readme.txt",
+      exists: true,
+      isDirectory: false,
+      extension: ".txt",
+      filename: "readme.txt",
+    });
+    vi.mocked(lstatSync).mockReturnValue({
+      size: 512,
+      isSymbolicLink: () => false,
+    } as any);
+    vi.mocked(readFileSync).mockReturnValue("hello world" as any);
+
+    const res = await app.request("/workspace/read?path=readme.txt");
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.data.content).toBe("hello world");
   });
 });

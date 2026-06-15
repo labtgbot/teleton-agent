@@ -6,7 +6,7 @@ import {
   rmSync,
   renameSync,
   readdirSync,
-  statSync,
+  lstatSync,
   existsSync,
 } from "node:fs";
 import { join, relative } from "node:path";
@@ -81,7 +81,7 @@ function getWorkspaceStats(
     } else if (entry.isFile()) {
       state.files++;
       try {
-        state.size += statSync(fullPath).size;
+        state.size += lstatSync(fullPath).size;
       } catch {
         // skip inaccessible files
       }
@@ -113,7 +113,7 @@ function listDir(
     const relPath = relative(WORKSPACE_ROOT, fullPath);
 
     try {
-      const stats = statSync(fullPath);
+      const stats = lstatSync(fullPath);
       state.entries.push({
         name: entry.name,
         path: relPath,
@@ -200,7 +200,16 @@ export function createWorkspaceRoutes(_deps: WebUIServerDeps) {
         return c.json(response, 415);
       }
 
-      const stats = statSync(validated.absolutePath);
+      const stats = lstatSync(validated.absolutePath);
+
+      // SECURITY: Reject symlinks that may have been swapped in after validateReadPath
+      if (stats.isSymbolicLink()) {
+        const response: APIResponse = {
+          success: false,
+          error: "Access denied: symbolic links are not allowed",
+        };
+        return c.json(response, 403);
+      }
 
       // 5MB limit for image preview
       if (stats.size > 5 * 1024 * 1024) {
@@ -241,7 +250,16 @@ export function createWorkspaceRoutes(_deps: WebUIServerDeps) {
       }
 
       const validated = validateReadPath(path);
-      const stats = statSync(validated.absolutePath);
+      const stats = lstatSync(validated.absolutePath);
+
+      // SECURITY: Reject symlinks that may have been swapped in after validateReadPath
+      if (stats.isSymbolicLink()) {
+        const response: APIResponse = {
+          success: false,
+          error: "Access denied: symbolic links are not allowed",
+        };
+        return c.json(response, 403);
+      }
 
       // Limit read size to 1MB for safety
       if (stats.size > 1024 * 1024) {
