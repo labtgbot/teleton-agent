@@ -1235,71 +1235,91 @@ ${blue}  ┌──────────────────────�
     // Callback query handler: register ONCE, dispatch dynamically
     if (!this.callbackHandlerRegistered) {
       this.bridge.getClient().addCallbackQueryHandler(async (update: unknown) => {
-        if (!update || typeof update !== "object") {
-          return;
-        }
-        const callbackUpdate = update as {
-          queryId?: unknown;
-          data?: { toString(): string } | string;
-          peer?: {
-            channelId?: { toString(): string };
-            chatId?: { toString(): string };
-            userId?: { toString(): string };
-          };
-          msgId?: unknown;
-          userId?: unknown;
-        };
-        const queryId = callbackUpdate.queryId;
-        const data =
-          typeof callbackUpdate.data === "string"
-            ? callbackUpdate.data
-            : callbackUpdate.data?.toString() || "";
-        const parts = data.split(":");
-        const action = parts[0];
-        const params = parts.slice(1);
-
-        const chatId =
-          callbackUpdate.peer?.channelId?.toString() ??
-          callbackUpdate.peer?.chatId?.toString() ??
-          callbackUpdate.peer?.userId?.toString() ??
-          "";
-        const messageId =
-          typeof callbackUpdate.msgId === "number"
-            ? callbackUpdate.msgId
-            : Number(callbackUpdate.msgId || 0);
-        const userId = Number(callbackUpdate.userId);
-
-        const answer = async (text?: string, alert = false): Promise<void> => {
-          try {
-            await this.bridge.getClient().answerCallbackQuery(queryId, { message: text, alert });
-          } catch (err) {
-            log.error(
-              `❌ Failed to answer callback query: ${err instanceof Error ? err.message : err}`
-            );
+        try {
+          if (!update || typeof update !== "object") {
+            return;
           }
-        };
+          const callbackUpdate = update as {
+            queryId?: unknown;
+            data?: { toString(): string } | string;
+            peer?: {
+              channelId?: { toString(): string };
+              chatId?: { toString(): string };
+              userId?: { toString(): string };
+            };
+            msgId?: unknown;
+            userId?: unknown;
+          };
 
-        const event: PluginCallbackEvent = {
-          data,
-          action,
-          params,
-          chatId,
-          messageId,
-          userId,
-          answer,
-        };
+          // queryId is required to answer the callback — skip if missing/invalid
+          const queryId = callbackUpdate.queryId;
+          if (queryId === undefined || queryId === null) {
+            return;
+          }
 
-        for (const mod of this.modules) {
-          const withHooks = mod as PluginModuleWithHooks;
-          if (withHooks.onCallbackQuery) {
+          // data must be present and non-empty to parse the action
+          const data =
+            typeof callbackUpdate.data === "string"
+              ? callbackUpdate.data
+              : typeof callbackUpdate.data?.toString === "function"
+                ? callbackUpdate.data.toString()
+                : "";
+          if (!data) {
+            return;
+          }
+          const parts = data.split(":");
+          const action = parts[0];
+          const params = parts.slice(1);
+
+          const chatId =
+            callbackUpdate.peer?.channelId?.toString() ??
+            callbackUpdate.peer?.chatId?.toString() ??
+            callbackUpdate.peer?.userId?.toString() ??
+            "";
+          // Guard against NaN from Number(undefined) or non-numeric values
+          const rawMsgId =
+            typeof callbackUpdate.msgId === "number"
+              ? callbackUpdate.msgId
+              : Number(callbackUpdate.msgId || 0);
+          const messageId = Number.isFinite(rawMsgId) ? rawMsgId : 0;
+          const rawUserId = Number(callbackUpdate.userId);
+          const userId = Number.isFinite(rawUserId) ? rawUserId : 0;
+
+          const answer = async (text?: string, alert = false): Promise<void> => {
             try {
-              await withHooks.onCallbackQuery(event);
+              await this.bridge.getClient().answerCallbackQuery(queryId, { message: text, alert });
             } catch (err) {
               log.error(
-                `❌ [${mod.name}] onCallbackQuery error: ${err instanceof Error ? err.message : err}`
+                `❌ Failed to answer callback query: ${err instanceof Error ? err.message : err}`
               );
             }
+          };
+
+          const event: PluginCallbackEvent = {
+            data,
+            action,
+            params,
+            chatId,
+            messageId,
+            userId,
+            answer,
+          };
+
+          for (const mod of this.modules) {
+            const withHooks = mod as PluginModuleWithHooks;
+            if (withHooks.onCallbackQuery) {
+              try {
+                await withHooks.onCallbackQuery(event);
+              } catch (err) {
+                log.error(
+                  `❌ [${mod.name}] onCallbackQuery error: ${err instanceof Error ? err.message : err}`
+                );
+              }
+            }
           }
+        } catch (err) {
+          // Catch-all: prevent any malformed update from killing the handler
+          log.error(`❌ Callback query handler error: ${err instanceof Error ? err.message : err}`);
         }
       });
       this.callbackHandlerRegistered = true;
