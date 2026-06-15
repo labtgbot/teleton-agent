@@ -53,6 +53,7 @@ import type { AutonomousTaskManager } from "./autonomous/manager.js";
 import { initMetrics } from "./services/metrics.js";
 import { initAnalytics } from "./services/analytics.js";
 import { flushOffsets } from "./telegram/offset-store.js";
+import { killAllSpawnedProcesses } from "./agent/tools/exec/runner.js";
 
 const log = createLogger("App");
 
@@ -1507,6 +1508,9 @@ ${blue}  ┌──────────────────────�
     } catch (e) {
       log.error({ err: e }, "⚠️ Bridge disconnect failed");
     }
+
+    // Kill any remaining child processes (detached or long-running exec tasks)
+    killAllSpawnedProcesses();
   }
 }
 
@@ -1531,6 +1535,12 @@ export async function main(configPath?: string): Promise<void> {
     log.error({ err: error }, "💥 Uncaught exception");
     // Exit on uncaught exceptions - state may be corrupted
     process.exit(1);
+  });
+
+  // Safety net: kill any remaining child processes on forced exit
+  // (covers paths where stopAgent() is never called, e.g. process.exit(1))
+  process.on("exit", () => {
+    killAllSpawnedProcesses();
   });
 
   // Handle graceful shutdown with timeout safety net
