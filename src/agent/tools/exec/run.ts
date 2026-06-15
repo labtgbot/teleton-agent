@@ -20,11 +20,39 @@ export const execRunTool: Tool = {
   }),
 };
 
+/**
+ * Shell metacharacters that could be used for command injection.
+ * If a command contains any of these, it is rejected in allowlist mode
+ * unless the allowlist entry itself contains the same metacharacter
+ * (indicating the owner explicitly intended a compound command).
+ */
+const SHELL_METACHARACTERS = /[;|&`$(){}[\]<>!#*?\\]/;
+
 export function isCommandAllowed(command: string, commandAllowlist: string[]): boolean {
   const trimmed = command.trim();
+
+  // Reject empty commands
+  if (!trimmed) return false;
+
   return commandAllowlist.some((pattern) => {
     const p = pattern.trim();
-    return trimmed === p || trimmed.startsWith(p + " ");
+    if (!p) return false;
+
+    // Exact match — always allowed
+    if (trimmed === p) return true;
+
+    // Prefix match: the command must start with the pattern followed by
+    // a space, AND the remainder must not contain shell metacharacters
+    // that would enable injection (e.g., "ls; rm -rf /").
+    if (trimmed.startsWith(p + " ")) {
+      const remainder = trimmed.slice(p.length + 1);
+      // If the pattern itself contains metacharacters, trust the owner's
+      // allowlist entry. Otherwise, reject if remainder has metacharacters.
+      if (SHELL_METACHARACTERS.test(p)) return true;
+      return !SHELL_METACHARACTERS.test(remainder);
+    }
+
+    return false;
   });
 }
 

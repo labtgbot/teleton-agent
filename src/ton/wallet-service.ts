@@ -171,25 +171,29 @@ export function saveWallet(wallet: WalletData): void {
     throw err;
   }
 
-  let fileContent: string;
-  if (key) {
-    const { iv, tag, ciphertext } = encryptMnemonic(wallet.mnemonic, key);
-    const encrypted: EncryptedWalletFile = {
-      encrypted: true,
-      version: wallet.version,
-      address: wallet.address,
-      publicKey: wallet.publicKey,
-      createdAt: wallet.createdAt,
-      iv,
-      tag,
-      ciphertext,
-    };
-    fileContent = JSON.stringify(encrypted, null, 2);
-    log.debug("Saving wallet with AES-256-GCM encrypted mnemonic");
-  } else {
-    fileContent = JSON.stringify(wallet, null, 2);
-    log.debug("Saving wallet with plaintext mnemonic (no encryption key configured)");
+  if (!key) {
+    // CRITICAL SECURITY: Never save mnemonic in plaintext.
+    // An attacker with filesystem read access would gain full wallet control.
+    throw new Error(
+      "TELETON_WALLET_KEY is required to save wallet. " +
+        "Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\" " +
+        "and set it as TELETON_WALLET_KEY in your environment or .env file."
+    );
   }
+
+  const { iv, tag, ciphertext } = encryptMnemonic(wallet.mnemonic, key);
+  const encrypted: EncryptedWalletFile = {
+    encrypted: true,
+    version: wallet.version,
+    address: wallet.address,
+    publicKey: wallet.publicKey,
+    createdAt: wallet.createdAt,
+    iv,
+    tag,
+    ciphertext,
+  };
+  const fileContent = JSON.stringify(encrypted, null, 2);
+  log.debug("Saving wallet with AES-256-GCM encrypted mnemonic");
 
   writeFileSync(WALLET_FILE, fileContent, { encoding: "utf-8", mode: 0o600 });
 
@@ -246,38 +250,17 @@ export function loadWallet(): WalletData | null {
         return null;
       }
     } else {
-      // ── Plaintext (legacy) format ─────────────────────────────────
-      if (!parsed.mnemonic || !Array.isArray(parsed.mnemonic) || parsed.mnemonic.length !== 24) {
-        throw new Error("Invalid wallet.json: mnemonic must be a 24-word array");
-      }
-      mnemonic = parsed.mnemonic as string[];
-
-      // Transparently migrate to encrypted format if key is now configured
-      let key: Buffer | null = null;
-      try {
-        key = resolveEncryptionKey();
-      } catch {
-        // Ignore key errors during migration attempt — log and continue plaintext
-      }
-      if (key) {
-        log.info("Encryption key detected — migrating plaintext wallet.json to encrypted format");
-        try {
-          const walletToMigrate: WalletData = {
-            version: parsed.version ?? "w5r1",
-            address: parsed.address,
-            publicKey: parsed.publicKey,
-            mnemonic,
-            createdAt: parsed.createdAt,
-          };
-          saveWallet(walletToMigrate);
-          // loadWallet() is recursively called by saveWallet cache reset, so just load from cache
-        } catch (err) {
-          log.error(
-            { err },
-            "Failed to migrate wallet to encrypted format — continuing with plaintext"
-          );
-        }
-      }
+      // ── Plaintext (legacy) format — REJECTED for security ─────────
+      // Plaintext wallet files are no longer supported. The owner must
+      // either: (1) set TELETON_WALLET_KEY and re-import via mnemonic, or
+      // (2) delete wallet.json and let the agent generate a new encrypted one.
+      log.error(
+        "wallet.json contains plaintext mnemonic — this is no longer supported. " +
+          "Set TELETON_WALLET_KEY and import your mnemonic via /wallet import, " +
+          "or delete wallet.json to generate a new encrypted wallet."
+      );
+      _walletCache = null;
+      return null;
     }
 
     if (mnemonic.length !== 24) {

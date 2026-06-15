@@ -104,7 +104,11 @@ export function runCommand(
     let timedOut = false;
     let resolved = false;
 
-    // Use security-provided env whitelist, or fall back to sanitized env
+    // SECURITY: Environment variable handling:
+    // - If env_whitelist is configured (non-empty), use it exclusively (allowlist).
+    // - Otherwise, use the name-pattern blacklist sanitizer as a fallback.
+    //   The blacklist filters out common secret patterns (API_KEY, TOKEN, etc.)
+    //   but is not exhaustive — prefer explicit env_whitelist for production.
     const env = securityEnv ?? sanitizeEnv(process.env);
 
     // On Linux, use prctl-pdeathsig helper if available so the kernel kills
@@ -203,7 +207,7 @@ export function runCommand(
 /** Ensure the sandbox directory exists on disk. */
 export function ensureSandboxDir(sandboxDir: string): void {
   if (!fs.existsSync(sandboxDir)) {
-    fs.mkdirSync(sandboxDir, { recursive: true, mode: 0o755 });
+    fs.mkdirSync(sandboxDir, { recursive: true, mode: 0o700 });
   }
 }
 
