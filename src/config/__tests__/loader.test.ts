@@ -200,33 +200,37 @@ describe("Config Loader", () => {
 
   beforeEach(() => {
     // Save original env vars
-    originalEnv.TELETON_API_KEY = process.env.TELETON_API_KEY;
-    originalEnv.TELETON_TG_API_ID = process.env.TELETON_TG_API_ID;
-    originalEnv.TELETON_TG_API_HASH = process.env.TELETON_TG_API_HASH;
-    originalEnv.TELETON_TG_PHONE = process.env.TELETON_TG_PHONE;
-    originalEnv.TELETON_WEBUI_ENABLED = process.env.TELETON_WEBUI_ENABLED;
-    originalEnv.TELETON_WEBUI_PORT = process.env.TELETON_WEBUI_PORT;
-    originalEnv.TELETON_WEBUI_HOST = process.env.TELETON_WEBUI_HOST;
-
-    // Clear env vars before each test
-    delete process.env.TELETON_API_KEY;
-    delete process.env.TELETON_TG_API_ID;
-    delete process.env.TELETON_TG_API_HASH;
-    delete process.env.TELETON_TG_PHONE;
-    delete process.env.TELETON_WEBUI_ENABLED;
-    delete process.env.TELETON_WEBUI_PORT;
-    delete process.env.TELETON_WEBUI_HOST;
+    const envKeys = [
+      "TELETON_API_KEY",
+      "TELETON_TG_API_ID",
+      "TELETON_TG_API_HASH",
+      "TELETON_TG_PHONE",
+      "TELETON_WEBUI_ENABLED",
+      "TELETON_WEBUI_PORT",
+      "TELETON_WEBUI_HOST",
+      "TELETON_WEBUI_AUTH_TOKEN",
+      "TELETON_API_ENABLED",
+      "TELETON_API_PORT",
+      "TELETON_BASE_URL",
+      "TELETON_TAVILY_API_KEY",
+      "TELETON_TONAPI_KEY",
+      "TELETON_TONCENTER_API_KEY",
+    ];
+    for (const key of envKeys) {
+      originalEnv[key] = process.env[key];
+      delete process.env[key];
+    }
   });
 
   afterEach(() => {
     // Restore original env vars after each test
-    Object.keys(originalEnv).forEach((key) => {
+    for (const key of Object.keys(originalEnv)) {
       if (originalEnv[key] === undefined) {
         delete process.env[key];
       } else {
         process.env[key] = originalEnv[key];
       }
-    });
+    }
   });
 
   afterAll(() => {
@@ -480,20 +484,56 @@ telegram:
       expect(config.webui.port).toBe(9999);
     });
 
-    it("should ignore invalid TELETON_WEBUI_PORT", () => {
+    it("should throw error on invalid TELETON_WEBUI_PORT", () => {
       writeTestConfig(MINIMAL_CONFIG);
       process.env.TELETON_WEBUI_PORT = "not_a_number";
 
-      const config = loadConfig(TEST_CONFIG_PATH);
-      expect(config.webui.port).toBe(7777); // Default
+      expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow(
+        /Invalid TELETON_WEBUI_PORT.*not a valid integer/
+      );
     });
 
-    it("should override webui host with TELETON_WEBUI_HOST", () => {
+    it("should throw error on TELETON_WEBUI_PORT below 1024", () => {
       writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_WEBUI_PORT = "80";
+
+      expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow(
+        /Invalid TELETON_WEBUI_PORT.*must be between 1024 and 65535/
+      );
+    });
+
+    it("should throw error on TELETON_WEBUI_PORT above 65535", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_WEBUI_PORT = "99999";
+
+      expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow(
+        /Invalid TELETON_WEBUI_PORT.*must be between 1024 and 65535/
+      );
+    });
+
+    it("should override webui host with TELETON_WEBUI_HOST when auth_token is set", () => {
+      writeTestConfig(FULL_CONFIG); // has auth_token
       process.env.TELETON_WEBUI_HOST = "0.0.0.0";
 
       const config = loadConfig(TEST_CONFIG_PATH);
       expect(config.webui.host).toBe("0.0.0.0");
+    });
+
+    it("should throw error on non-loopback TELETON_WEBUI_HOST without auth_token", () => {
+      writeTestConfig(MINIMAL_CONFIG); // no auth_token
+      process.env.TELETON_WEBUI_HOST = "0.0.0.0";
+
+      expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow(
+        /Refusing to bind WebUI to non-loopback address/
+      );
+    });
+
+    it("should allow loopback TELETON_WEBUI_HOST without auth_token", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_WEBUI_HOST = "127.0.0.1";
+
+      const config = loadConfig(TEST_CONFIG_PATH);
+      expect(config.webui.host).toBe("127.0.0.1");
     });
 
     it("should handle multiple env var overrides simultaneously", () => {
@@ -508,6 +548,144 @@ telegram:
       expect(config.telegram.api_id).toBe(77777);
       expect(config.webui.enabled).toBe(true);
       expect(config.webui.port).toBe(8080);
+    });
+  });
+
+  // ─── Env Var Validation Tests ──────────────────────────────────────────────
+
+  describe("loadConfig - env var validation", () => {
+    // TELETON_API_KEY validation
+    it("should reject empty TELETON_API_KEY", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_API_KEY = "";
+      expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow(/Invalid TELETON_API_KEY: empty string/);
+    });
+
+    it("should reject whitespace-only TELETON_API_KEY", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_API_KEY = "   ";
+      expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow(/Invalid TELETON_API_KEY: empty string/);
+    });
+
+    it("should reject short TELETON_API_KEY (< 8 chars)", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_API_KEY = "short";
+      expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow(/Invalid TELETON_API_KEY: too short/);
+    });
+
+    // TELETON_TG_API_HASH validation
+    it("should reject empty TELETON_TG_API_HASH", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_TG_API_HASH = "";
+      expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow(
+        /Invalid TELETON_TG_API_HASH: empty string/
+      );
+    });
+
+    // TELETON_TG_PHONE validation
+    it("should reject empty TELETON_TG_PHONE", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_TG_PHONE = "";
+      expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow(/Invalid TELETON_TG_PHONE: empty string/);
+    });
+
+    // TELETON_WEBUI_ENABLED validation
+    it("should reject invalid TELETON_WEBUI_ENABLED value", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_WEBUI_ENABLED = "yes";
+      expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow(
+        /Invalid TELETON_WEBUI_ENABLED.*must be "true" or "false"/
+      );
+    });
+
+    it("should accept TELETON_WEBUI_ENABLED=True (case-insensitive)", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_WEBUI_ENABLED = "True";
+      const config = loadConfig(TEST_CONFIG_PATH);
+      expect(config.webui.enabled).toBe(true);
+    });
+
+    // TELETON_API_ENABLED validation
+    it("should reject invalid TELETON_API_ENABLED value", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_API_ENABLED = "on";
+      expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow(
+        /Invalid TELETON_API_ENABLED.*must be "true" or "false"/
+      );
+    });
+
+    it("should accept TELETON_API_ENABLED=False (case-insensitive)", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_API_ENABLED = "False";
+      const config = loadConfig(TEST_CONFIG_PATH);
+      expect(config.api!.enabled).toBe(false);
+    });
+
+    // TELETON_API_PORT validation
+    it("should throw error on invalid TELETON_API_PORT", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_API_PORT = "abc";
+      expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow(
+        /Invalid TELETON_API_PORT.*not a valid integer/
+      );
+    });
+
+    it("should throw error on TELETON_API_PORT below 1024", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_API_PORT = "22";
+      expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow(
+        /Invalid TELETON_API_PORT.*must be between 1024 and 65535/
+      );
+    });
+
+    // TELETON_BASE_URL validation
+    it("should reject TELETON_BASE_URL with ftp scheme", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_BASE_URL = "ftp://example.com";
+      expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow(
+        /Invalid TELETON_BASE_URL.*scheme must be http or https/
+      );
+    });
+
+    it("should accept valid TELETON_BASE_URL with https", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_BASE_URL = "https://api.example.com/v1";
+      const config = loadConfig(TEST_CONFIG_PATH);
+      expect(config.agent.base_url).toBe("https://api.example.com/v1");
+    });
+
+    // Empty API key validation
+    it("should reject empty TELETON_TAVILY_API_KEY", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_TAVILY_API_KEY = "";
+      expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow(
+        /Invalid TELETON_TAVILY_API_KEY: empty string/
+      );
+    });
+
+    it("should reject empty TELETON_TONAPI_KEY", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_TONAPI_KEY = "";
+      expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow(
+        /Invalid TELETON_TONAPI_KEY: empty string/
+      );
+    });
+
+    it("should reject empty TELETON_TONCENTER_API_KEY", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      process.env.TELETON_TONCENTER_API_KEY = "";
+      expect(() => loadConfig(TEST_CONFIG_PATH)).toThrow(
+        /Invalid TELETON_TONCENTER_API_KEY: empty string/
+      );
+    });
+
+    // Re-validation after overrides
+    it("should re-validate config after all env var overrides", () => {
+      writeTestConfig(MINIMAL_CONFIG);
+      // Set a valid api_key override — should pass re-validation
+      process.env.TELETON_API_KEY = "sk-ant-valid-key-long-enough";
+      const config = loadConfig(TEST_CONFIG_PATH);
+      expect(config.agent.api_key).toBe("sk-ant-valid-key-long-enough");
     });
   });
 
