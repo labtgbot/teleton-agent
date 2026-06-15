@@ -117,7 +117,7 @@ function createTestApp(opts: TestAppOptions = {}) {
       keyHash: TEST_KEY_HASH,
       allowedIps,
     });
-    app.use("/v1/*", authMw);
+    app.use("/v1/*", authMw.middleware);
   }
 
   // Audit logging

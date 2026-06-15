@@ -11,6 +11,7 @@ interface FailedAttempt {
 const MAX_FAILED = 10;
 const WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 const BLOCK_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_FAILED_ATTEMPTS_ENTRIES = 10_000; // Cap to prevent unbounded growth under distributed attack
 
 /**
  * Compute the Shannon entropy (bits) of the key material (the part after "tltn_").
@@ -49,10 +50,16 @@ function hashApiKey(key: string): string {
   return createHash("sha256").update(key).digest("hex");
 }
 
+export interface AuthMiddleware {
+  middleware: MiddlewareHandler;
+  /** Stop the cleanup interval and release the failedAttempts Map. */
+  dispose(): void;
+}
+
 export function createAuthMiddleware(config: {
   keyHash: string;
   allowedIps: string[];
-}): MiddlewareHandler {
+}): AuthMiddleware {
   const failedAttempts = new Map<string, FailedAttempt>();
 
   // Periodic cleanup every 5 minutes
@@ -66,7 +73,7 @@ export function createAuthMiddleware(config: {
   }, WINDOW_MS);
   cleanupInterval.unref();
 
-  return async (c, next) => {
+  const middleware: MiddlewareHandler = async (c, next) => {
     // Get source IP from the underlying socket
     const rawIp =
       (c.env as Record<string, string | undefined>)?.ip ?? c.req.header("x-real-ip") ?? "unknown";
@@ -155,6 +162,13 @@ export function createAuthMiddleware(config: {
         });
       }
 
+      // Evict oldest entries if the map grows beyond the cap (prevents unbounded growth
+      // under a distributed attack with many unique IPs)
+      if (failedAttempts.size > MAX_FAILED_ATTEMPTS_ENTRIES) {
+        const oldestKey = failedAttempts.keys().next().value;
+        if (oldestKey) failedAttempts.delete(oldestKey);
+      }
+
       throw new HTTPException(401, {
         res: createProblemResponse(c, 401, "Unauthorized", "Invalid API key"),
       });
@@ -167,5 +181,13 @@ export function createAuthMiddleware(config: {
     c.set("keyPrefix", apiKey.slice(0, 10));
 
     await next();
+  };
+
+  return {
+    middleware,
+    dispose() {
+      clearInterval(cleanupInterval);
+      failedAttempts.clear();
+    },
   };
 }
