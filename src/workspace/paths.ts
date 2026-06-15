@@ -40,6 +40,8 @@ export const WORKSPACE_PATHS = {
  * Allowed file extensions for different operations
  */
 export const ALLOWED_EXTENSIONS = {
+  // Default safe text type — used when no specific type is provided
+  text: [".md", ".txt", ".json", ".csv", ".yaml", ".yml", ".xml", ".toml", ".ini", ".log"],
   // Images
   images: [".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"],
   // Audio
@@ -72,6 +74,56 @@ export const ALLOWED_EXTENSIONS = {
     ".mkv",
   ],
 } as const;
+
+/**
+ * Extensions that are always blocked from writing to workspace,
+ * regardless of fileType. These could be executed directly or
+ * serve as attack vectors (RCE, XSS via WebUI, etc.).
+ */
+export const BLOCKED_EXTENSIONS: readonly string[] = [
+  ".exe",
+  ".dll",
+  ".bat",
+  ".cmd",
+  ".com",
+  ".msi", // Windows executables
+  ".ps1",
+  ".psm1",
+  ".psd1", // PowerShell
+  ".vbs",
+  ".vbe",
+  ".wsf",
+  ".wsh", // Windows scripting
+  ".hta",
+  ".cinf", // HTML app / config
+  ".scr",
+  ".pif", // Screenshort / program info
+  ".reg",
+  ".inf", // Registry / install
+  ".app",
+  ".dmg",
+  ".pkg",
+  ".deb",
+  ".rpm", // macOS / Linux packages
+  ".so",
+  ".dylib", // Shared libraries
+  ".bin", // Generic binary
+];
+
+/**
+ * Map a file extension to the most appropriate fileType.
+ * Used by download tools that don't know the type upfront.
+ * Returns "text" for unknown extensions (safest default).
+ */
+export function extensionToFileType(ext: string): keyof typeof ALLOWED_EXTENSIONS {
+  const lower = ext.toLowerCase();
+  // Find matching type (blocked extensions are rejected later in validateWritePath)
+  for (const [type, exts] of Object.entries(ALLOWED_EXTENSIONS)) {
+    if ((exts as readonly string[]).includes(lower)) return type as keyof typeof ALLOWED_EXTENSIONS;
+  }
+  // Unknown extension → safest default
+  return "text";
+}
 
 /**
  * Maximum file sizes (in bytes)

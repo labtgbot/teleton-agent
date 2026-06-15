@@ -3,7 +3,7 @@
 import { existsSync, lstatSync, readdirSync } from "fs";
 import { resolve, normalize, relative, extname, basename } from "path";
 import { homedir } from "os";
-import { WORKSPACE_ROOT, ALLOWED_EXTENSIONS, MAX_FILE_SIZES } from "./paths.js";
+import { WORKSPACE_ROOT, ALLOWED_EXTENSIONS, BLOCKED_EXTENSIONS, MAX_FILE_SIZES } from "./paths.js";
 import { MAX_FILENAME_LENGTH } from "../constants/limits.js";
 
 /**
@@ -165,15 +165,18 @@ export function validateReadPath(inputPath: string): ValidatedPath {
 }
 
 /**
- * Validate a path for writing
- * Extension whitelist is now OPTIONAL (fix from audit)
+ * Validate a path for writing.
+ *
+ * SECURITY: Extension enforcement is always active. The fileType parameter
+ * defaults to "text" (safe extensions only). Executable extensions are
+ * blocked regardless of fileType. See issue #28.
  */
 // Owner configuration files that cannot be overwritten by the agent
 const IMMUTABLE_FILES = ["SOUL.md", "STRATEGY.md", "SECURITY.md"];
 
 export function validateWritePath(
   inputPath: string,
-  fileType?: keyof typeof ALLOWED_EXTENSIONS
+  fileType: keyof typeof ALLOWED_EXTENSIONS = "text"
 ): ValidatedPath {
   const validated = validatePath(inputPath, true);
 
@@ -185,16 +188,23 @@ export function validateWritePath(
     );
   }
 
-  // Check extension if type specified (OPTIONAL - not enforced by default)
-  if (fileType && ALLOWED_EXTENSIONS[fileType]) {
-    const allowedExts = ALLOWED_EXTENSIONS[fileType] as readonly string[];
-    if (!allowedExts.includes(validated.extension)) {
-      throw new WorkspaceSecurityError(
-        `Invalid file type: '${validated.extension}' is not allowed for ${fileType}. ` +
-          `Allowed: ${allowedExts.join(", ")}`,
-        inputPath
-      );
-    }
+  // SECURITY: Always block executable/dangerous extensions (issue #28)
+  if (BLOCKED_EXTENSIONS.includes(validated.extension)) {
+    throw new WorkspaceSecurityError(
+      `Blocked file type: '${validated.extension}' files cannot be written to workspace. ` +
+        `Executable and system file types are not allowed.`,
+      inputPath
+    );
+  }
+
+  // SECURITY: Enforce extension whitelist for the given fileType (issue #28)
+  const allowedExts = ALLOWED_EXTENSIONS[fileType] as readonly string[] | undefined;
+  if (allowedExts && !allowedExts.includes(validated.extension)) {
+    throw new WorkspaceSecurityError(
+      `Invalid file type: '${validated.extension}' is not allowed for ${fileType}. ` +
+        `Allowed: ${allowedExts.join(", ")}`,
+      inputPath
+    );
   }
 
   return validated;

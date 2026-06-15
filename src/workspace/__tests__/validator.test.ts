@@ -24,6 +24,7 @@ vi.mock("../paths.js", async () => {
     TELETON_ROOT: join(tempWorkspace, ".."),
     WORKSPACE_PATHS: {},
     ALLOWED_EXTENSIONS: {
+      text: [".md", ".txt", ".json", ".csv", ".yaml", ".yml", ".xml", ".toml", ".ini", ".log"],
       images: [".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"],
       audio: [".mp3", ".ogg", ".wav", ".m4a", ".opus"],
       video: [".mp4", ".mov", ".avi", ".webm", ".mkv"],
@@ -49,6 +50,36 @@ vi.mock("../paths.js", async () => {
         ".mkv",
       ],
     },
+    BLOCKED_EXTENSIONS: [
+      ".exe",
+      ".dll",
+      ".bat",
+      ".cmd",
+      ".com",
+      ".msi",
+      ".ps1",
+      ".psm1",
+      ".psd1",
+      ".vbs",
+      ".vbe",
+      ".wsf",
+      ".wsh",
+      ".hta",
+      ".cinf",
+      ".scr",
+      ".pif",
+      ".reg",
+      ".inf",
+      ".app",
+      ".dmg",
+      ".pkg",
+      ".deb",
+      ".rpm",
+      ".so",
+      ".dylib",
+      ".bin",
+      ".sh",
+    ],
     MAX_FILE_SIZES: {
       image: 10 * 1024 * 1024,
       audio: 50 * 1024 * 1024,
@@ -320,14 +351,21 @@ describe("Workspace Path Validator", () => {
         expect(result.extension).toBe(".md");
       });
 
-      it("should reject invalid extension when type specified", () => {
+      it("should reject blocked extension even when type matches (issue #28)", () => {
+        // .exe is in BLOCKED_EXTENSIONS, so it's blocked regardless of fileType
         expect(() => validateWritePath("new-doc.exe", "documents")).toThrow(WorkspaceSecurityError);
-        expect(() => validateWritePath("new-doc.exe", "documents")).toThrow("Invalid file type");
+        expect(() => validateWritePath("new-doc.exe", "documents")).toThrow("Blocked file type");
       });
 
-      it("should allow any extension when type not specified", () => {
-        const result = validateWritePath("new-file.anything", undefined);
-        expect(result.extension).toBe(".anything");
+      it("should reject non-text extension when type not specified (issue #28)", () => {
+        // Default fileType is "text", so .anything is rejected
+        expect(() => validateWritePath("new-file.anything")).toThrow(WorkspaceSecurityError);
+        expect(() => validateWritePath("new-file.anything")).toThrow("Invalid file type");
+      });
+
+      it("should allow text-type extensions by default", () => {
+        const result = validateWritePath("notes.txt");
+        expect(result.extension).toBe(".txt");
       });
 
       it("should validate image extensions", () => {
@@ -338,6 +376,31 @@ describe("Workspace Path Validator", () => {
       it("should validate code extensions", () => {
         const result = validateWritePath("script.ts", "code");
         expect(result.extension).toBe(".ts");
+      });
+
+      describe("Blocked executable extensions (issue #28)", () => {
+        it("should block .exe files", () => {
+          expect(() => validateWritePath("malware.exe")).toThrow(WorkspaceSecurityError);
+          expect(() => validateWritePath("malware.exe")).toThrow("Blocked file type");
+        });
+
+        it("should block .sh files", () => {
+          expect(() => validateWritePath("backdoor.sh")).toThrow(WorkspaceSecurityError);
+          expect(() => validateWritePath("backdoor.sh")).toThrow("Blocked file type");
+        });
+
+        it("should block .bat files", () => {
+          expect(() => validateWritePath("script.bat")).toThrow(WorkspaceSecurityError);
+        });
+
+        it("should block .ps1 files", () => {
+          expect(() => validateWritePath("payload.ps1")).toThrow(WorkspaceSecurityError);
+        });
+
+        it("should block blocked extension even with matching fileType", () => {
+          // .sh is in code extensions but also in blocked list — blocked wins
+          expect(() => validateWritePath("evil.sh", "code")).toThrow("Blocked file type");
+        });
       });
     });
 

@@ -9,6 +9,7 @@ import { getErrorMessage } from "../../../utils/errors.js";
 import {
   sanitizeFilename,
   validateWritePath,
+  extensionToFileType,
   WorkspaceSecurityError,
   type ValidatedPath,
 } from "../../../workspace/index.js";
@@ -439,10 +440,11 @@ function parseContentDispositionFilename(header: string | null): string | undefi
 function reserveDownloadPath(filename: string): ValidatedPath {
   const extension = extname(filename);
   const stem = stripExtension(filename);
+  const fileType = extensionToFileType(extension);
 
   for (let index = 0; index < 1000; index++) {
     const candidate = index === 0 ? filename : `${stem}-${index}${extension}`;
-    const validated = validateWritePath(`downloads/${candidate}`);
+    const validated = validateWritePath(`downloads/${candidate}`, fileType);
     if (!existsSync(validated.absolutePath)) return validated;
   }
 

@@ -3,7 +3,11 @@ import type { Api } from "telegram";
 import { writeFileSync } from "fs";
 import { extname } from "path";
 import type { Tool, ToolExecutor, ToolResult } from "../../types.js";
-import { validateWritePath, WorkspaceSecurityError } from "../../../../workspace/index.js";
+import {
+  validateWritePath,
+  extensionToFileType,
+  WorkspaceSecurityError,
+} from "../../../../workspace/index.js";
 import { getErrorMessage } from "../../../../utils/errors.js";
 import { createLogger } from "../../../../utils/logger.js";
 
@@ -163,7 +167,8 @@ export const telegramDownloadMediaExecutor: ToolExecutor<DownloadMediaParams> = 
     const downloadPath = `downloads/${finalFilename}`;
     let validatedPath;
     try {
-      validatedPath = validateWritePath(downloadPath);
+      const fileType = extensionToFileType(finalFilename);
+      validatedPath = validateWritePath(downloadPath, fileType);
     } catch (error) {
       if (error instanceof WorkspaceSecurityError) {
         return {
