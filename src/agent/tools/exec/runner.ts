@@ -165,3 +165,110 @@ export function ensureSandboxDir(sandboxDir: string): void {
     fs.mkdirSync(sandboxDir, { recursive: true, mode: 0o755 });
   }
 }
+
+/**
+ * spawnInstallCommand — runs a package manager via spawn with argument arrays.
+ * Uses sanitizeEnv() for child process env. Respects MAX_CONCURRENT limit.
+ * This is the injection-safe alternative to string-interpolated shell commands.
+ */
+export function spawnInstallCommand(
+  manager: "apt" | "pip" | "npm" | "docker",
+  packages: string[],
+  timeout: number,
+  maxOutput: number
+): Promise<ExecResult> {
+  if (activeCount >= MAX_CONCURRENT) {
+    throw new Error(`Max concurrent processes (${MAX_CONCURRENT}) reached`);
+  }
+  activeCount++;
+
+  const argsMap: Record<string, string[]> = {
+    apt: ["install", "-y", ...packages],
+    pip: ["install", ...packages],
+    npm: ["install", "-g", ...packages],
+    docker: ["pull", ...packages],
+  };
+
+  const args = argsMap[manager];
+  const startTime = Date.now();
+
+  return new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let truncated = false;
+    let timedOut = false;
+    let resolved = false;
+
+    const env = sanitizeEnv(process.env);
+
+    log.info({ manager, packages }, "Installing packages");
+
+    const child = spawn(manager, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      env,
+    });
+
+    const finish = (exitCode: number | null, signal: string | null) => {
+      if (resolved) return;
+      resolved = true;
+      activeCount--;
+      clearTimeout(timeoutTimer);
+      resolve({
+        stdout,
+        stderr,
+        exitCode,
+        signal,
+        duration: Date.now() - startTime,
+        truncated,
+        timedOut,
+      });
+    };
+
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+
+    child.stdout?.on("data", (chunk: string) => {
+      if (stdout.length < maxOutput) {
+        stdout += chunk;
+        if (stdout.length > maxOutput) {
+          stdout = stdout.slice(0, maxOutput);
+          truncated = true;
+        }
+      }
+    });
+
+    child.stderr?.on("data", (chunk: string) => {
+      if (stderr.length < maxOutput) {
+        stderr += chunk;
+        if (stderr.length > maxOutput) {
+          stderr = stderr.slice(0, maxOutput);
+          truncated = true;
+        }
+      }
+    });
+
+    child.on("close", (code, sig) => finish(code, sig));
+    child.on("error", (err) => {
+      log.error({ err }, "Spawn install error");
+      stderr += err.message;
+      finish(1, null);
+    });
+
+    const timeoutTimer = setTimeout(() => {
+      timedOut = true;
+      log.warn({ manager, packages, timeout }, "Install timed out, killing");
+      try {
+        if (child.pid != null) process.kill(-child.pid, "SIGTERM");
+      } catch {
+        /* dead */
+      }
+      setTimeout(() => {
+        try {
+          if (child.pid != null) process.kill(-child.pid, "SIGKILL");
+        } catch {
+          /* dead */
+        }
+      }, 5000);
+    }, timeout);
+  });
+}

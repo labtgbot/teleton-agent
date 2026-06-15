@@ -3,20 +3,31 @@ import Database from "better-sqlite3";
 import { ensureSchema } from "../../../../memory/schema.js";
 import type { ExecConfig } from "../../../../config/schema.js";
 import type { ToolContext } from "../../types.js";
-
-// Mock the runner to avoid real command execution
-vi.mock("../runner.js", () => ({
-  runCommand: vi.fn(),
-  ensureSandboxDir: vi.fn(),
-}));
-
-import { runCommand } from "../runner.js";
 import { createExecRunExecutor, isCommandAllowed } from "../run.js";
 import { createExecInstallExecutor } from "../install.js";
 import { createExecServiceExecutor } from "../service.js";
 import { createExecStatusExecutor } from "../status.js";
 
+// Mock the runner to avoid real command execution
+vi.mock("../runner.js", () => ({
+  runCommand: vi.fn(),
+  spawnInstallCommand: vi.fn(),
+  ensureSandboxDir: vi.fn(),
+}));
+
+// Mock concurrency to avoid real semaphore blocking across tests
+vi.mock("../concurrency.js", () => ({
+  execConcurrency: {
+    acquire: vi.fn().mockResolvedValue(undefined),
+    release: vi.fn(),
+    count: 0,
+  },
+}));
+
+import { runCommand, spawnInstallCommand } from "../runner.js";
+
 const mockRunCommand = vi.mocked(runCommand);
+const mockSpawnInstall = vi.mocked(spawnInstallCommand);
 
 function createTestDb(): Database.Database {
   const db = new Database(":memory:");
@@ -60,14 +71,12 @@ function makeExecConfig(overrides?: Partial<ExecConfig>): ExecConfig {
 }
 
 function makeContext(overrides?: Partial<ToolContext>): ToolContext {
-  const defaultConfig = { telegram: { admin_ids: [42] } } as any;
   return {
     bridge: {} as any,
     db: new Database(":memory:"),
     chatId: "123",
     senderId: 42,
     isGroup: false,
-    config: defaultConfig,
     ...overrides,
   };
 }
@@ -102,8 +111,8 @@ describe("exec_run", () => {
     });
     expect(mockRunCommand).toHaveBeenCalledWith(
       "echo hello",
-      expect.objectContaining({ timeout: 120000, maxOutput: 50000 }),
-      expect.anything()
+      { timeout: 120000, maxOutput: 50000 },
+      expect.objectContaining({ cwd: expect.any(String) })
     );
   });
 
@@ -175,8 +184,53 @@ describe("exec_install", () => {
     vi.clearAllMocks();
   });
 
-  it("constructs correct command for apt", async () => {
-    mockRunCommand.mockResolvedValue({
+  it("rejects URL-based packages", async () => {
+    const executor = createExecInstallExecutor(db, makeExecConfig());
+    const result = await executor(
+      { manager: "pip", packages: "https://evil.com/malware.tar.gz" },
+      makeContext()
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("URL-based packages not allowed");
+    expect(mockSpawnInstall).not.toHaveBeenCalled();
+  });
+
+  it("rejects archive-based packages", async () => {
+    const executor = createExecInstallExecutor(db, makeExecConfig());
+    const result = await executor({ manager: "pip", packages: "malware.whl" }, makeContext());
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("archive download not allowed");
+  });
+
+  it("rejects package names with shell metacharacters", async () => {
+    const executor = createExecInstallExecutor(db, makeExecConfig());
+    const result = await executor({ manager: "npm", packages: "pkg; rm -rf /" }, makeContext());
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("invalid package name");
+  });
+
+  it("rejects too many packages", async () => {
+    const many = Array.from({ length: 25 }, (_, i) => `pkg${i}`).join(" ");
+    const executor = createExecInstallExecutor(db, makeExecConfig());
+    const result = await executor({ manager: "pip", packages: many }, makeContext());
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Too many packages");
+  });
+
+  it("rejects empty package name", async () => {
+    const executor = createExecInstallExecutor(db, makeExecConfig());
+    const result = await executor({ manager: "apt", packages: "" }, makeContext());
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("No packages specified");
+  });
+
+  it("calls spawnInstallCommand with correct args for apt", async () => {
+    mockSpawnInstall.mockResolvedValue({
       stdout: "installed",
       stderr: "",
       exitCode: 0,
@@ -187,17 +241,14 @@ describe("exec_install", () => {
     });
 
     const executor = createExecInstallExecutor(db, makeExecConfig());
-    await executor({ manager: "apt", packages: "nginx curl" }, makeContext());
+    const result = await executor({ manager: "apt", packages: "nginx curl" }, makeContext());
 
-    expect(mockRunCommand).toHaveBeenCalledWith(
-      "apt install -y nginx curl",
-      expect.any(Object),
-      expect.anything()
-    );
+    expect(result.success).toBe(true);
+    expect(mockSpawnInstall).toHaveBeenCalledWith("apt", ["nginx", "curl"], 120000, 50000);
   });
 
-  it("constructs correct command for pip", async () => {
-    mockRunCommand.mockResolvedValue({
+  it("calls spawnInstallCommand with correct args for pip", async () => {
+    mockSpawnInstall.mockResolvedValue({
       stdout: "",
       stderr: "",
       exitCode: 0,
@@ -208,17 +259,14 @@ describe("exec_install", () => {
     });
 
     const executor = createExecInstallExecutor(db, makeExecConfig());
-    await executor({ manager: "pip", packages: "flask" }, makeContext());
+    const result = await executor({ manager: "pip", packages: "flask" }, makeContext());
 
-    expect(mockRunCommand).toHaveBeenCalledWith(
-      "pip install flask",
-      expect.any(Object),
-      expect.anything()
-    );
+    expect(result.success).toBe(true);
+    expect(mockSpawnInstall).toHaveBeenCalledWith("pip", ["flask"], 120000, 50000);
   });
 
-  it("constructs correct command for npm", async () => {
-    mockRunCommand.mockResolvedValue({
+  it("calls spawnInstallCommand with correct args for npm", async () => {
+    mockSpawnInstall.mockResolvedValue({
       stdout: "",
       stderr: "",
       exitCode: 0,
@@ -229,17 +277,14 @@ describe("exec_install", () => {
     });
 
     const executor = createExecInstallExecutor(db, makeExecConfig());
-    await executor({ manager: "npm", packages: "pm2" }, makeContext());
+    const result = await executor({ manager: "npm", packages: "pm2" }, makeContext());
 
-    expect(mockRunCommand).toHaveBeenCalledWith(
-      "npm install -g pm2",
-      expect.any(Object),
-      expect.anything()
-    );
+    expect(result.success).toBe(true);
+    expect(mockSpawnInstall).toHaveBeenCalledWith("npm", ["pm2"], 120000, 50000);
   });
 
-  it("constructs correct command for docker", async () => {
-    mockRunCommand.mockResolvedValue({
+  it("calls spawnInstallCommand with correct args for docker", async () => {
+    mockSpawnInstall.mockResolvedValue({
       stdout: "",
       stderr: "",
       exitCode: 0,
@@ -250,17 +295,14 @@ describe("exec_install", () => {
     });
 
     const executor = createExecInstallExecutor(db, makeExecConfig());
-    await executor({ manager: "docker", packages: "nginx:latest" }, makeContext());
+    const result = await executor({ manager: "docker", packages: "nginx:latest" }, makeContext());
 
-    expect(mockRunCommand).toHaveBeenCalledWith(
-      "docker pull nginx:latest",
-      expect.any(Object),
-      expect.anything()
-    );
+    expect(result.success).toBe(true);
+    expect(mockSpawnInstall).toHaveBeenCalledWith("docker", ["nginx:latest"], 120000, 50000);
   });
 
   it("logs audit entry", async () => {
-    mockRunCommand.mockResolvedValue({
+    mockSpawnInstall.mockResolvedValue({
       stdout: "",
       stderr: "",
       exitCode: 0,
@@ -277,6 +319,34 @@ describe("exec_install", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].tool).toBe("exec_install");
     expect(rows[0].command).toBe("apt install -y nginx");
+  });
+
+  it("returns error when spawnInstallCommand throws", async () => {
+    mockSpawnInstall.mockRejectedValue(new Error("spawn ENOENT"));
+
+    const executor = createExecInstallExecutor(db, makeExecConfig());
+    const result = await executor({ manager: "apt", packages: "nginx" }, makeContext());
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Install failed");
+  });
+
+  it("returns error when install times out", async () => {
+    mockSpawnInstall.mockResolvedValue({
+      stdout: "",
+      stderr: "",
+      exitCode: null,
+      signal: "SIGTERM",
+      duration: 120000,
+      truncated: false,
+      timedOut: true,
+    });
+
+    const executor = createExecInstallExecutor(db, makeExecConfig());
+    const result = await executor({ manager: "apt", packages: "huge-package" }, makeContext());
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("timed out");
   });
 });
 
@@ -305,7 +375,7 @@ describe("exec_service", () => {
     expect(mockRunCommand).toHaveBeenCalledWith(
       "systemctl status nginx",
       expect.any(Object),
-      expect.anything()
+      expect.objectContaining({ cwd: expect.any(String) })
     );
   });
 
@@ -347,11 +417,12 @@ describe("isCommandAllowed", () => {
   });
 
   it("does not allow prefix substring without whitespace boundary", () => {
+    // 'git' should not match 'gitconfig' without a space after it
     expect(isCommandAllowed("gitconfig --list", ["git"])).toBe(false);
   });
 
   it("trims whitespace before matching", () => {
-    expect(isCommandAllowed(" ls /tmp", ["ls"])).toBe(true);
+    expect(isCommandAllowed("  ls  /tmp", ["ls"])).toBe(true);
   });
 });
 
@@ -398,7 +469,7 @@ describe("exec_run allowlist mode", () => {
     expect(mockRunCommand).toHaveBeenCalledWith(
       "git status",
       expect.any(Object),
-      expect.anything()
+      expect.objectContaining({ cwd: expect.any(String) })
     );
   });
 
@@ -497,7 +568,9 @@ describe("exec_status", () => {
     const result = await executor({} as any, makeContext());
 
     expect(result.success).toBe(true);
+    // memory should contain the failure message
     expect(result.data.memory).toContain("failed");
+    // other keys should have data
     expect(result.data.disk).toBe("some data");
   });
 });
