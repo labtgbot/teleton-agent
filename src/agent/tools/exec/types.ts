@@ -26,3 +26,10 @@ export interface RunOptions {
   timeout: number; // ms
   maxOutput: number; // chars
 }
+
+export interface RunSecurityOptions {
+  /** Restricted working directory */
+  cwd?: string;
+  /** Filtered environment variables */
+  env?: NodeJS.ProcessEnv;
+}

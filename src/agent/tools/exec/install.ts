@@ -1,7 +1,8 @@
 import { Type } from "@sinclair/typebox";
 import type { Tool, ToolExecutor, ToolResult } from "../types.js";
 import type { ExecConfig } from "../../../config/schema.js";
-import { runCommand } from "./runner.js";
+import { runCommand, ensureSandboxDir } from "./runner.js";
+import { execConcurrency } from "./concurrency.js";
 import { insertAuditEntry, updateAuditEntry } from "./audit.js";
 import type Database from "better-sqlite3";
 
@@ -50,6 +51,8 @@ export function createExecInstallExecutor(
 
     const command = buildCommand(packages);
 
+    await execConcurrency.acquire(execConfig.security.max_concurrent);
+
     let auditId: number | undefined;
     if (execConfig.audit.log_commands) {
       auditId = insertAuditEntry(db, {
@@ -62,42 +65,72 @@ export function createExecInstallExecutor(
       });
     }
 
-    const result = await runCommand(command, {
-      timeout: timeout * 1000,
-      maxOutput: max_output,
-    });
+    try {
+      const sandboxDir = execConfig.security.sandbox_dir;
+      if (sandboxDir) ensureSandboxDir(sandboxDir);
 
-    const status = result.timedOut ? "timeout" : result.exitCode === 0 ? "success" : "failed";
+      const security = {
+        cwd: sandboxDir || undefined,
+        env:
+          execConfig.security.env_whitelist.length > 0
+            ? buildFilteredEnv(execConfig.security.env_whitelist)
+            : undefined,
+      };
 
-    if (auditId !== undefined) {
-      updateAuditEntry(db, auditId, {
-        status,
-        exitCode: result.exitCode ?? undefined,
-        signal: result.signal ?? undefined,
-        duration: result.duration,
-        stdout: result.stdout,
-        stderr: result.stderr,
-        truncated: result.truncated,
-      });
+      const result = await runCommand(
+        command,
+        {
+          timeout: timeout * 1000,
+          maxOutput: max_output,
+        },
+        security
+      );
+
+      const status = result.timedOut ? "timeout" : result.exitCode === 0 ? "success" : "failed";
+
+      if (auditId !== undefined) {
+        updateAuditEntry(db, auditId, {
+          status,
+          exitCode: result.exitCode ?? undefined,
+          signal: result.signal ?? undefined,
+          duration: result.duration,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          truncated: result.truncated,
+        });
+      }
+
+      return {
+        success: result.exitCode === 0 && !result.timedOut,
+        data: {
+          manager,
+          packages,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          exitCode: result.exitCode,
+          duration: result.duration,
+          truncated: result.truncated,
+          timedOut: result.timedOut,
+        },
+        ...(result.timedOut
+          ? { error: `Install timed out after ${timeout}s` }
+          : result.exitCode !== 0
+            ? { error: `Install failed with exit code ${result.exitCode}` }
+            : {}),
+      };
+    } finally {
+      execConcurrency.release();
     }
-
-    return {
-      success: result.exitCode === 0 && !result.timedOut,
-      data: {
-        manager,
-        packages,
-        stdout: result.stdout,
-        stderr: result.stderr,
-        exitCode: result.exitCode,
-        duration: result.duration,
-        truncated: result.truncated,
-        timedOut: result.timedOut,
-      },
-      ...(result.timedOut
-        ? { error: `Install timed out after ${timeout}s` }
-        : result.exitCode !== 0
-          ? { error: `Install failed with exit code ${result.exitCode}` }
-          : {}),
-    };
   };
+}
+
+function buildFilteredEnv(envWhitelist: string[]): NodeJS.ProcessEnv {
+  const allowed = new Set(envWhitelist);
+  const filtered: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (allowed.has(key) && value !== undefined) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
 }
