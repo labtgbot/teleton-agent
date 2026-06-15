@@ -116,82 +116,170 @@ export function loadConfig(configPath: string = DEFAULT_CONFIG_PATH): Config {
   // These indicate the user copied config.example.yaml without filling in real values.
   warnPlaceholders(config);
 
-  if (process.env.TELETON_API_KEY) {
-    config.agent.api_key = process.env.TELETON_API_KEY;
+  // ─── Environment Variable Overrides (with validation) ─────────────────────
+  // All env vars are validated against the same Zod constraints before assignment.
+  // After all overrides, the full config is re-validated to catch any divergence.
+
+  if (process.env.TELETON_API_KEY !== undefined) {
+    const key = process.env.TELETON_API_KEY.trim();
+    if (key.length === 0) {
+      throw new Error("Invalid TELETON_API_KEY: empty string");
+    }
+    if (key.length < 8) {
+      throw new Error(`Invalid TELETON_API_KEY: too short (${key.length} chars, minimum 8)`);
+    }
+    config.agent.api_key = key;
   }
-  if (process.env.TELETON_TG_API_ID) {
+
+  if (process.env.TELETON_TG_API_ID !== undefined) {
     const apiId = parseInt(process.env.TELETON_TG_API_ID, 10);
     if (isNaN(apiId)) {
       throw new Error(
-        `Invalid TELETON_TG_API_ID environment variable: "${process.env.TELETON_TG_API_ID}" is not a valid integer`
+        `Invalid TELETON_TG_API_ID: "${process.env.TELETON_TG_API_ID}" is not a valid integer`
       );
     }
     config.telegram.api_id = apiId;
   }
-  if (process.env.TELETON_TG_API_HASH) {
-    config.telegram.api_hash = process.env.TELETON_TG_API_HASH;
+
+  if (process.env.TELETON_TG_API_HASH !== undefined) {
+    const hash = process.env.TELETON_TG_API_HASH.trim();
+    if (hash.length === 0) {
+      throw new Error("Invalid TELETON_TG_API_HASH: empty string");
+    }
+    config.telegram.api_hash = hash;
   }
-  if (process.env.TELETON_TG_PHONE) {
-    config.telegram.phone = process.env.TELETON_TG_PHONE;
+
+  if (process.env.TELETON_TG_PHONE !== undefined) {
+    const phone = process.env.TELETON_TG_PHONE.trim();
+    if (phone.length === 0) {
+      throw new Error("Invalid TELETON_TG_PHONE: empty string");
+    }
+    config.telegram.phone = phone;
   }
 
   // WebUI environment variable overrides
   if (process.env.TELETON_WEBUI_ENABLED) {
-    config.webui.enabled = process.env.TELETON_WEBUI_ENABLED === "true";
-  }
-  if (process.env.TELETON_WEBUI_PORT) {
-    const port = parseInt(process.env.TELETON_WEBUI_PORT, 10);
-    if (!isNaN(port) && port >= 1024 && port <= 65535) {
-      config.webui.port = port;
-    }
-  }
-  if (process.env.TELETON_WEBUI_HOST) {
-    config.webui.host = process.env.TELETON_WEBUI_HOST;
-    if (!["127.0.0.1", "localhost", "::1"].includes(config.webui.host)) {
-      log.warn(
-        { host: config.webui.host },
-        "WebUI bound to non-loopback address — ensure auth_token is set"
+    const val = process.env.TELETON_WEBUI_ENABLED.toLowerCase();
+    if (val !== "true" && val !== "false") {
+      throw new Error(
+        `Invalid TELETON_WEBUI_ENABLED: "${process.env.TELETON_WEBUI_ENABLED}" — must be "true" or "false"`
       );
     }
+    config.webui.enabled = val === "true";
+  }
+
+  if (process.env.TELETON_WEBUI_PORT) {
+    const port = parsePort(process.env.TELETON_WEBUI_PORT, "TELETON_WEBUI_PORT");
+    config.webui.port = port;
+  }
+
+  if (process.env.TELETON_WEBUI_HOST) {
+    const host = process.env.TELETON_WEBUI_HOST.trim();
+    if (host.length === 0) {
+      throw new Error("Invalid TELETON_WEBUI_HOST: empty string");
+    }
+    // Hard-block non-loopback when no auth_token is configured
+    if (!config.webui.auth_token && !["127.0.0.1", "localhost", "::1"].includes(host)) {
+      throw new Error(
+        `Refusing to bind WebUI to non-loopback address "${host}" without auth_token. ` +
+          "Set webui.auth_token in config or TELETON_WEBUI_AUTH_TOKEN env var, " +
+          "or use a loopback address (127.0.0.1, localhost, ::1)."
+      );
+    }
+    config.webui.host = host;
+    if (!["127.0.0.1", "localhost", "::1"].includes(host)) {
+      log.warn({ host }, "WebUI bound to non-loopback address — ensure auth_token is set");
+    }
+  }
+
+  // WebUI auth token override
+  if (process.env.TELETON_WEBUI_AUTH_TOKEN) {
+    const token = process.env.TELETON_WEBUI_AUTH_TOKEN.trim();
+    if (token.length === 0) {
+      throw new Error("Invalid TELETON_WEBUI_AUTH_TOKEN: empty string");
+    }
+    config.webui.auth_token = token;
   }
 
   // Management API environment variable overrides
   if (process.env.TELETON_API_ENABLED) {
-    if (!config.api) config.api = { enabled: false, port: 7778, key_hash: "", allowed_ips: [] };
-    config.api.enabled = process.env.TELETON_API_ENABLED === "true";
-  }
-  if (process.env.TELETON_API_PORT) {
-    const port = parseInt(process.env.TELETON_API_PORT, 10);
-    if (!isNaN(port) && port >= 1024 && port <= 65535) {
-      if (!config.api) config.api = { enabled: false, port: 7778, key_hash: "", allowed_ips: [] };
-      config.api.port = port;
-    }
-  }
-
-  // Local LLM base URL override
-  if (process.env.TELETON_BASE_URL) {
-    try {
-      new URL(process.env.TELETON_BASE_URL);
-      config.agent.base_url = process.env.TELETON_BASE_URL;
-    } catch {
+    const val = process.env.TELETON_API_ENABLED.toLowerCase();
+    if (val !== "true" && val !== "false") {
       throw new Error(
-        `Invalid TELETON_BASE_URL: "${process.env.TELETON_BASE_URL}" is not a valid URL`
+        `Invalid TELETON_API_ENABLED: "${process.env.TELETON_API_ENABLED}" — must be "true" or "false"`
       );
     }
+    if (!config.api) config.api = { enabled: false, port: 7778, key_hash: "", allowed_ips: [] };
+    config.api.enabled = val === "true";
   }
 
-  // Optional API key overrides
-  if (process.env.TELETON_TAVILY_API_KEY) {
-    config.tavily_api_key = process.env.TELETON_TAVILY_API_KEY;
-  }
-  if (process.env.TELETON_TONAPI_KEY) {
-    config.tonapi_key = process.env.TELETON_TONAPI_KEY;
-  }
-  if (process.env.TELETON_TONCENTER_API_KEY) {
-    config.toncenter_api_key = process.env.TELETON_TONCENTER_API_KEY;
+  if (process.env.TELETON_API_PORT) {
+    const port = parsePort(process.env.TELETON_API_PORT, "TELETON_API_PORT");
+    if (!config.api) config.api = { enabled: false, port: 7778, key_hash: "", allowed_ips: [] };
+    config.api.port = port;
   }
 
-  return config;
+  // Local LLM base URL override — must be valid URL with http/https scheme
+  if (process.env.TELETON_BASE_URL) {
+    const raw = process.env.TELETON_BASE_URL.trim();
+    let parsed: URL;
+    try {
+      parsed = new URL(raw);
+    } catch {
+      throw new Error(`Invalid TELETON_BASE_URL: "${raw}" is not a valid URL`);
+    }
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      throw new Error(
+        `Invalid TELETON_BASE_URL: "${raw}" — scheme must be http or https, got "${parsed.protocol}"`
+      );
+    }
+    config.agent.base_url = raw;
+  }
+
+  // Optional API key overrides — reject empty strings
+  // Use `!== undefined` instead of truthy check so empty string "" is caught
+  if (process.env.TELETON_TAVILY_API_KEY !== undefined) {
+    const key = process.env.TELETON_TAVILY_API_KEY.trim();
+    if (key.length === 0) throw new Error("Invalid TELETON_TAVILY_API_KEY: empty string");
+    config.tavily_api_key = key;
+  }
+  if (process.env.TELETON_TONAPI_KEY !== undefined) {
+    const key = process.env.TELETON_TONAPI_KEY.trim();
+    if (key.length === 0) throw new Error("Invalid TELETON_TONAPI_KEY: empty string");
+    config.tonapi_key = key;
+  }
+  if (process.env.TELETON_TONCENTER_API_KEY !== undefined) {
+    const key = process.env.TELETON_TONCENTER_API_KEY.trim();
+    if (key.length === 0) throw new Error("Invalid TELETON_TONCENTER_API_KEY: empty string");
+    config.toncenter_api_key = key;
+  }
+
+  // ─── Re-validate after all env var overrides ───────────────────────────────
+  // This catches any divergence between the validated config and the final state
+  // after all environment variable mutations have been applied.
+  const revalidated = ConfigSchema.safeParse(config);
+  if (!revalidated.success) {
+    throw new Error(
+      `Config validation failed after environment variable overrides: ${revalidated.error.message}`
+    );
+  }
+
+  return revalidated.data;
+}
+
+/**
+ * Parse and validate a port number from a string env var.
+ * Enforces the same range as the Zod schema: 1024-65535 (non-privileged ports).
+ */
+function parsePort(raw: string, varName: string): number {
+  const port = parseInt(raw, 10);
+  if (isNaN(port)) {
+    throw new Error(`Invalid ${varName}: "${raw}" is not a valid integer`);
+  }
+  if (port < 1024 || port > 65535) {
+    throw new Error(`Invalid ${varName}: ${port} — must be between 1024 and 65535`);
+  }
+  return port;
 }
 
 export function saveConfig(config: Config, configPath: string = DEFAULT_CONFIG_PATH): void {
