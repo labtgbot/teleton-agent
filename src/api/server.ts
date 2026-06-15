@@ -22,7 +22,7 @@ import { createProblem } from "./schemas/common.js";
 
 // Middleware
 import { requestId } from "./middleware/request-id.js";
-import { createAuthMiddleware } from "./middleware/auth.js";
+import { createAuthMiddleware, type AuthMiddleware } from "./middleware/auth.js";
 import { globalRateLimit, mutatingRateLimit, readRateLimit } from "./middleware/rate-limit.js";
 import { auditMiddleware } from "./middleware/audit.js";
 
@@ -101,6 +101,7 @@ export class ApiServer {
   private tls: TlsCert | null = null;
   private apiKey: string | null = null;
   private keyHash: string;
+  private authMw: AuthMiddleware | null = null;
 
   constructor(deps: ApiServerDeps, config: ApiConfig) {
     this.deps = deps;
@@ -194,11 +195,11 @@ export class ApiServer {
     });
 
     // Auth middleware for /v1/* routes
-    const authMw = createAuthMiddleware({
+    this.authMw = createAuthMiddleware({
       keyHash: this.keyHash,
       allowedIps: this.config.allowed_ips,
     });
-    this.app.use("/v1/*", authMw);
+    this.app.use("/v1/*", this.authMw.middleware);
 
     // Rate limiting after auth
     this.app.use("/v1/*", globalRateLimit);
@@ -455,6 +456,11 @@ export class ApiServer {
   }
 
   async stop(): Promise<void> {
+    // Dispose auth middleware first (clears the cleanup interval and releases the Map)
+    if (this.authMw) {
+      this.authMw.dispose();
+      this.authMw = null;
+    }
     if (this.server) {
       return new Promise((resolve) => {
         (this.server as HttpServer).closeAllConnections();
