@@ -105,23 +105,22 @@ describe("runner", () => {
     expect(result.stderr).toContain("ENOENT");
   });
 
-  it("kills process tree on timeout", async () => {
+  it("kills child process on timeout", async () => {
     const proc = createMockProcess();
     mockSpawn.mockReturnValue(proc);
-    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
 
     const promise = runCommand("sleep 999", { timeout: 100, maxOutput: 50000 });
 
     vi.advanceTimersByTime(150);
+
+    // child.kill("SIGTERM") should have been called on timeout
+    expect(proc.kill).toHaveBeenCalledWith("SIGTERM");
 
     // Process gets killed, simulate close
     proc.emit("close", null, "SIGTERM");
 
     const result = await promise;
     expect(result.timedOut).toBe(true);
-    expect(killSpy).toHaveBeenCalledWith(-12345, "SIGTERM");
-
-    killSpy.mockRestore();
   });
 
   it("returns duration in ms", async () => {
