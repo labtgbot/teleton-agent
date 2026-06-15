@@ -12,6 +12,16 @@ import { createExecStatusExecutor } from "../status.js";
 vi.mock("../runner.js", () => ({
   runCommand: vi.fn(),
   spawnInstallCommand: vi.fn(),
+  ensureSandboxDir: vi.fn(),
+}));
+
+// Mock concurrency to avoid real semaphore blocking across tests
+vi.mock("../concurrency.js", () => ({
+  execConcurrency: {
+    acquire: vi.fn().mockResolvedValue(undefined),
+    release: vi.fn(),
+    count: 0,
+  },
 }));
 
 import { runCommand, spawnInstallCommand } from "../runner.js";
@@ -50,6 +60,12 @@ function makeExecConfig(overrides?: Partial<ExecConfig>): ExecConfig {
     ],
     limits: { timeout: 120, max_output: 50000 },
     audit: { log_commands: true },
+    security: {
+      yolo_confirmation: true,
+      sandbox_dir: "/tmp/teleton-exec-sandbox",
+      env_whitelist: ["HOME", "PATH", "LANG", "TERM", "USER", "SHELL"],
+      max_concurrent: 5,
+    },
     ...overrides,
   };
 }
@@ -93,10 +109,11 @@ describe("exec_run", () => {
       exitCode: 0,
       timedOut: false,
     });
-    expect(mockRunCommand).toHaveBeenCalledWith("echo hello", {
-      timeout: 120000,
-      maxOutput: 50000,
-    });
+    expect(mockRunCommand).toHaveBeenCalledWith(
+      "echo hello",
+      { timeout: 120000, maxOutput: 50000 },
+      expect.objectContaining({ cwd: expect.any(String) })
+    );
   });
 
   it("returns error when command fails", async () => {
@@ -355,7 +372,11 @@ describe("exec_service", () => {
     const executor = createExecServiceExecutor(db, makeExecConfig());
     await executor({ action: "status", name: "nginx" }, makeContext());
 
-    expect(mockRunCommand).toHaveBeenCalledWith("systemctl status nginx", expect.any(Object));
+    expect(mockRunCommand).toHaveBeenCalledWith(
+      "systemctl status nginx",
+      expect.any(Object),
+      expect.objectContaining({ cwd: expect.any(String) })
+    );
   });
 
   it("logs audit entry", async () => {
@@ -445,7 +466,11 @@ describe("exec_run allowlist mode", () => {
     const result = await executor({ command: "git status" }, makeContext());
 
     expect(result.success).toBe(true);
-    expect(mockRunCommand).toHaveBeenCalledWith("git status", expect.any(Object));
+    expect(mockRunCommand).toHaveBeenCalledWith(
+      "git status",
+      expect.any(Object),
+      expect.objectContaining({ cwd: expect.any(String) })
+    );
   });
 
   it("error message lists configured prefixes", async () => {
