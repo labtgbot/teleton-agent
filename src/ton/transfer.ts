@@ -1,3 +1,4 @@
+import type { TonClient } from "@ton/ton";
 import { WalletContractV5R1, toNano, internal } from "@ton/ton";
 import { Address, SendMode } from "@ton/core";
 import { getKeyPair, getCachedTonClient, invalidateTonClientCache } from "./wallet-service.js";
@@ -6,6 +7,36 @@ import { withTxLock } from "./tx-lock.js";
 import { getAuditInstance, type FinancialAuditDetails } from "../services/audit.js";
 
 const log = createLogger("TON");
+
+/** Wait for a transaction to appear on-chain after sendTransfer */
+async function waitForTransactionHash(
+  client: TonClient,
+  walletAddress: Address,
+  sentAt: number,
+  maxWaitMs = 10_000,
+  pollIntervalMs = 2_000
+): Promise<string | null> {
+  const deadline = Date.now() + maxWaitMs;
+
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, pollIntervalMs));
+
+    try {
+      const txs = await client.getTransactions(walletAddress, { limit: 5 });
+      // Find the first transaction that appeared after we sent
+      for (const tx of txs) {
+        const txTimeMs = tx.now * 1000;
+        if (txTimeMs >= sentAt) {
+          return tx.hash().toString("hex");
+        }
+      }
+    } catch {
+      // Retry on next poll cycle
+    }
+  }
+
+  return null;
+}
 
 export interface SendTonParams {
   toAddress: string;
@@ -57,6 +88,8 @@ export async function sendTon(params: SendTonParams): Promise<string | null> {
     const seqno = await contract.getSeqno();
 
     try {
+      const sentAt = Date.now();
+
       await contract.sendTransfer({
         seqno,
         secretKey: keyPair.secretKey,
@@ -71,9 +104,13 @@ export async function sendTon(params: SendTonParams): Promise<string | null> {
         ],
       });
 
-      const pseudoHash = `${seqno}_${Date.now()}_${amount.toFixed(2)}`;
+      // Wait for the transaction to appear on-chain and get its real hash
+      const realHash = await waitForTransactionHash(client, wallet.address, sentAt);
+      const txHash = realHash ?? `pending_${seqno}_${sentAt}_${amount.toFixed(2)}`;
 
-      log.info(`Sent ${amount} TON to ${toAddress.slice(0, 8)}... - seqno: ${seqno}`);
+      log.info(
+        `Sent ${amount} TON to ${toAddress.slice(0, 8)}... - seqno: ${seqno}, hash: ${txHash}`
+      );
 
       _logFinancial({
         operation: "ton_transfer",
@@ -81,11 +118,11 @@ export async function sendTon(params: SendTonParams): Promise<string | null> {
         asset: "TON",
         recipient: toAddress,
         comment: comment || undefined,
-        txId: pseudoHash,
+        txId: txHash,
         status: "success",
       });
 
-      return pseudoHash;
+      return txHash;
     } catch (error: unknown) {
       // Invalidate node cache on 429/5xx so next attempt picks a fresh node
       const err = error as { status?: number; response?: { status?: number } };
