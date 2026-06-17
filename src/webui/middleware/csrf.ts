@@ -58,6 +58,10 @@ export function createCsrfMiddleware(): MiddlewareHandler {
       return next();
     }
 
+    // Determine if the request is over HTTPS (direct or via reverse proxy)
+    const isHttps =
+      c.req.header("x-forwarded-proto") === "https" || new URL(c.req.url).protocol === "https:";
+
     // Ensure a CSRF cookie exists (set one if missing)
     let csrfToken = getCookie(c, CSRF_COOKIE_NAME);
     if (!csrfToken) {
@@ -66,7 +70,7 @@ export function createCsrfMiddleware(): MiddlewareHandler {
         path: "/",
         httpOnly: false, // must be readable by JS
         sameSite: "Strict",
-        secure: false, // localhost is HTTP; set to true behind HTTPS proxy
+        secure: isHttps,
         maxAge: CSRF_COOKIE_MAX_AGE,
       });
     }
