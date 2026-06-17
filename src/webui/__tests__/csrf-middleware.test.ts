@@ -120,6 +120,33 @@ describe("CSRF middleware — mutation succeeds when token matches cookie", () =
   });
 });
 
+describe("CSRF middleware — secure flag", () => {
+  const app = buildApp();
+
+  it("sets secure=false for HTTP requests", async () => {
+    const res = await app.request("http://localhost/api/data");
+    const setCookie = res.headers.get("Set-Cookie");
+    expect(setCookie).toBeTruthy();
+    expect(setCookie).not.toContain("Secure");
+  });
+
+  it("sets secure=true for HTTPS requests", async () => {
+    const res = await app.request("https://localhost/api/data");
+    const setCookie = res.headers.get("Set-Cookie");
+    expect(setCookie).toBeTruthy();
+    expect(setCookie).toContain("Secure");
+  });
+
+  it("sets secure=true when x-forwarded-proto is https", async () => {
+    const res = await app.request("http://localhost/api/data", {
+      headers: { "x-forwarded-proto": "https" },
+    });
+    const setCookie = res.headers.get("Set-Cookie");
+    expect(setCookie).toBeTruthy();
+    expect(setCookie).toContain("Secure");
+  });
+});
+
 describe("CSRF middleware — /auth/* routes bypass token check", () => {
   const app = buildApp();
 
