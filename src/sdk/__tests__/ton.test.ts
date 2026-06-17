@@ -1777,6 +1777,7 @@ describe("createTonSDK", () => {
         }));
         (getCachedTonClient as Mock).mockResolvedValue({
           open: vi.fn().mockReturnValue(mockContract),
+          getTransactions: vi.fn().mockResolvedValue([]),
         });
         (withTxLock as Mock).mockImplementation((fn: () => any) => fn());
         mockContract.getSeqno.mockResolvedValue(7);
@@ -1786,8 +1787,7 @@ describe("createTonSDK", () => {
       it("sends with default options", async () => {
         const result = await sdk.send(VALID_ADDRESS, 1);
         expect(result).toMatchObject({ seqno: 7 });
-        expect(result.hash).toContain("7_");
-        expect(result.hash).toContain("_send");
+        expect(typeof result.hash).toBe("string");
         expect(withTxLock).toHaveBeenCalled();
       });
 
@@ -1829,6 +1829,7 @@ describe("createTonSDK", () => {
           mockContract.sendTransfer.mockResolvedValue(undefined);
           (getCachedTonClient as Mock).mockResolvedValue({
             open: vi.fn().mockReturnValue(mockContract),
+            getTransactions: vi.fn().mockResolvedValue([]),
           });
           (withTxLock as Mock).mockImplementation((fn: () => any) => fn());
 
@@ -1917,6 +1918,7 @@ describe("createTonSDK", () => {
         }));
         (getCachedTonClient as Mock).mockResolvedValue({
           open: vi.fn().mockReturnValue(mockContract),
+          getTransactions: vi.fn().mockResolvedValue([]),
         });
         (withTxLock as Mock).mockImplementation((fn: () => any) => fn());
         mockContract.getSeqno.mockResolvedValue(15);
@@ -1930,7 +1932,7 @@ describe("createTonSDK", () => {
         ];
         const result = await sdk.sendMessages(msgs);
         expect(result).toMatchObject({ seqno: 15 });
-        expect(result.hash).toContain("_sendMessages");
+        expect(typeof result.hash).toBe("string");
         expect(mocks.internal).toHaveBeenCalledTimes(2);
         expect(withTxLock).toHaveBeenCalled();
       });

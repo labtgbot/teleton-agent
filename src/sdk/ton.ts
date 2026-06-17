@@ -61,6 +61,40 @@ function formatTokenBalance(rawBalance: bigint, decimals: number): string {
     : `${wholePart}.${fractionalPart.toString().padStart(decimals, "0").replace(/0+$/, "")}`;
 }
 
+/** Wait for a transaction to appear on-chain after sendTransfer, return its real hash. */
+async function _waitForTxHash(
+  client: Awaited<ReturnType<typeof getCachedTonClient>>,
+  walletAddress: { toString(): string } | undefined,
+  sentAt: number,
+  maxWaitMs = 10_000,
+  pollIntervalMs = 2_000
+): Promise<string | null> {
+  if (!walletAddress) return null;
+
+  try {
+    const { Address: TonAddress } = await import("@ton/core");
+    const deadline = Date.now() + maxWaitMs;
+    const addr = TonAddress.parse(walletAddress.toString());
+
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, pollIntervalMs));
+      try {
+        const txs = await client.getTransactions(addr, { limit: 5 });
+        for (const tx of txs) {
+          if (tx.now * 1000 >= sentAt) {
+            return tx.hash().toString("hex");
+          }
+        }
+      } catch {
+        // Retry on next poll cycle
+      }
+    }
+  } catch {
+    // Address parsing or other error — return null so caller uses fallback
+  }
+  return null;
+}
+
 const DEFAULT_MAX_AGE_MINUTES = 10;
 
 const DEFAULT_TX_RETENTION_DAYS = 30;
@@ -1117,12 +1151,14 @@ export function createTonSDK(log: PluginLogger, db: Database.Database | null): T
       }
 
       try {
+        const wallet = WalletContractV5R1.create({
+          workchain: 0,
+          publicKey: keyPair.publicKey,
+        });
+        const client = await getCachedTonClient();
+        const sentAt = Date.now();
+
         const seqno = await withTxLock(async () => {
-          const wallet = WalletContractV5R1.create({
-            workchain: 0,
-            publicKey: keyPair.publicKey,
-          });
-          const client = await getCachedTonClient();
           const contract = client.open(wallet);
           const seq = await contract.getSeqno();
 
@@ -1144,7 +1180,9 @@ export function createTonSDK(log: PluginLogger, db: Database.Database | null): T
           return seq;
         });
 
-        return { hash: `${seqno}_${Date.now()}_send`, seqno };
+        // Wait for the transaction to appear on-chain
+        const txHash = await _waitForTxHash(client, wallet.address, sentAt);
+        return { hash: txHash ?? `pending_${seqno}_${sentAt}_send`, seqno };
       } catch (err) {
         const httpErr = isHttpError(err) ? err : undefined;
         const status = httpErr?.status || httpErr?.response?.status;
@@ -1195,12 +1233,14 @@ export function createTonSDK(log: PluginLogger, db: Database.Database | null): T
       }
 
       try {
+        const wallet = WalletContractV5R1.create({
+          workchain: 0,
+          publicKey: keyPair.publicKey,
+        });
+        const client = await getCachedTonClient();
+        const sentAt = Date.now();
+
         const seqno = await withTxLock(async () => {
-          const wallet = WalletContractV5R1.create({
-            workchain: 0,
-            publicKey: keyPair.publicKey,
-          });
-          const client = await getCachedTonClient();
           const contract = client.open(wallet);
           const seq = await contract.getSeqno();
 
@@ -1222,7 +1262,9 @@ export function createTonSDK(log: PluginLogger, db: Database.Database | null): T
           return seq;
         });
 
-        return { hash: `${seqno}_${Date.now()}_sendMessages`, seqno };
+        // Wait for the transaction to appear on-chain
+        const txHash = await _waitForTxHash(client, wallet.address, sentAt);
+        return { hash: txHash ?? `pending_${seqno}_${sentAt}_sendMessages`, seqno };
       } catch (err) {
         const httpErr = isHttpError(err) ? err : undefined;
         const status = httpErr?.status || httpErr?.response?.status;
