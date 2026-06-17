@@ -2,26 +2,32 @@
  * Sliding window rate limiter for plugin bot actions.
  * In-memory, per-plugin, no external dependencies.
  *
- * Memory safety: entries are cleaned up in two ways:
- * 1. Per-key pruning — expired timestamps are removed on every `check()` call
- * 2. Global sweep — a periodic interval removes stale keys (no timestamps within 2x the
- *    default window) to prevent unbounded growth from many unique plugin/action combinations.
+ * Memory safety: expired timestamps are pruned on every `check()` call,
+ * and empty keys are deleted immediately. A periodic background sweep
+ * removes stale keys (no recent activity) to prevent unbounded growth
+ * from many unique plugin/action combinations.
  */
 
 export class PluginRateLimiter {
   private windows = new Map<string, number[]>();
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
-  private readonly cleanupIntervalMs: number;
-  private readonly maxWindowMs: number;
+  private sweepCounter = 0;
+  private readonly sweepEveryNCalls: number;
 
   /**
-   * @param cleanupIntervalMs - How often to run global cleanup (default: 5 minutes)
-   * @param maxWindowMs - Maximum expected window size for stale-key detection (default: 2 minutes)
+   * @param cleanupIntervalMs - How often to run global cleanup via background interval (default: 5 minutes).
+   *                            Set to 0 to disable the background interval (relying on per-check pruning).
+   * @param sweepEveryNCalls - Perform an incremental sweep every N `check()` calls (default: 100).
+   *                           Set to 0 to disable call-count-based sweeping.
    */
-  constructor(cleanupIntervalMs = 300_000, maxWindowMs = 120_000) {
-    this.cleanupIntervalMs = cleanupIntervalMs;
-    this.maxWindowMs = maxWindowMs;
-    this.startCleanup();
+  constructor(
+    private readonly cleanupIntervalMs = 300_000,
+    sweepEveryNCalls = 100
+  ) {
+    this.sweepEveryNCalls = sweepEveryNCalls;
+    if (cleanupIntervalMs > 0) {
+      this.startCleanup(cleanupIntervalMs);
+    }
   }
 
   /**
@@ -64,6 +70,15 @@ export class PluginRateLimiter {
     }
 
     timestamps.push(now);
+
+    // Incremental sweep every N calls (avokes setInterval interference with fake timers)
+    if (this.sweepEveryNCalls > 0) {
+      this.sweepCounter++;
+      if (this.sweepCounter >= this.sweepEveryNCalls) {
+        this.sweepCounter = 0;
+        this.sweep(now);
+      }
+    }
   }
 
   /** Clear all rate limit windows (for testing) */
@@ -80,27 +95,25 @@ export class PluginRateLimiter {
   }
 
   /** Start periodic cleanup of stale entries */
-  private startCleanup(): void {
+  private startCleanup(intervalMs: number): void {
     this.cleanupInterval = setInterval(() => {
-      this.sweep();
-    }, this.cleanupIntervalMs);
+      this.sweep(Date.now());
+    }, intervalMs);
   }
 
   /**
-   * Remove entries that have no timestamps within the max window.
+   * Remove entries that have no timestamps within a reasonable window.
    * This prevents unbounded memory growth from many unique plugin/action keys.
    */
-  private sweep(): void {
-    const now = Date.now();
-    const cutoff = now - this.maxWindowMs;
+  private sweep(now: number): void {
+    // Use a generous cutoff: 2x the default window (120s) or 5 minutes, whichever is larger
+    const cutoff = now - Math.max(120_000, this.cleanupIntervalMs / 2);
 
     for (const [key, timestamps] of this.windows) {
-      // Remove expired timestamps from this key
       const firstValid = timestamps.findIndex((t) => t > cutoff);
       if (firstValid > 0) {
         timestamps.splice(0, firstValid);
       } else if (firstValid === -1) {
-        // All timestamps are stale — remove the entire key
         this.windows.delete(key);
       }
     }
