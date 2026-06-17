@@ -25,6 +25,7 @@ import {
   writePluginSecret,
   deletePluginSecret,
   listPluginSecretKeys,
+  requireEncryptionKey,
 } from "../secrets.js";
 import { PluginSDKError } from "@teleton-agent/sdk";
 import type { PluginLogger } from "@teleton-agent/sdk";
@@ -42,6 +43,9 @@ const mockLog: PluginLogger = {
   debug: vi.fn(),
 };
 
+// Valid 64-char hex key for tests (32 bytes)
+const TEST_KEY = randomBytes(32).toString("hex");
+
 // Env vars set during tests — cleaned up in afterEach
 const envKeysToClean: string[] = [];
 
@@ -53,6 +57,7 @@ function setEnv(key: string, value: string): void {
 beforeEach(() => {
   mkdirSync(SECRETS_DIR, { recursive: true });
   vi.clearAllMocks();
+  setEnv("TELETON_SECRETS_KEY", TEST_KEY);
 });
 
 afterEach(() => {
@@ -64,6 +69,36 @@ afterEach(() => {
 
   // Remove temp directory
   rmSync(TEST_ROOT, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// requireEncryptionKey tests
+// ---------------------------------------------------------------------------
+describe("requireEncryptionKey()", () => {
+  it("returns Buffer when TELETON_SECRETS_KEY is set", () => {
+    const key = requireEncryptionKey();
+    expect(Buffer.isBuffer(key)).toBe(true);
+    expect(key.length).toBe(32);
+  });
+
+  it("falls back to TELETON_WALLET_KEY when TELETON_SECRETS_KEY is absent", () => {
+    delete process.env.TELETON_SECRETS_KEY;
+    setEnv("TELETON_WALLET_KEY", TEST_KEY);
+    const key = requireEncryptionKey();
+    expect(Buffer.isBuffer(key)).toBe(true);
+    expect(key.length).toBe(32);
+  });
+
+  it("throws when no encryption key is configured", () => {
+    delete process.env.TELETON_SECRETS_KEY;
+    delete process.env.TELETON_WALLET_KEY;
+    expect(() => requireEncryptionKey()).toThrow("No encryption key configured");
+  });
+
+  it("throws when key is not 64 hex chars", () => {
+    setEnv("TELETON_SECRETS_KEY", "too-short");
+    expect(() => requireEncryptionKey()).toThrow("64-character hex string");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -197,12 +232,16 @@ describe("SecretsSDK.has()", () => {
 // Admin functions: writePluginSecret
 // ---------------------------------------------------------------------------
 describe("writePluginSecret()", () => {
-  it("creates secrets file with mode 0o600", () => {
+  it("creates encrypted secrets file", () => {
     writePluginSecret("testplugin", "API_KEY", "supersecret");
 
     const filePath = secretsPath("testplugin");
     const content = JSON.parse(readFileSync(filePath, "utf-8"));
-    expect(content).toEqual({ API_KEY: "supersecret" });
+    expect(content.encrypted).toBe(true);
+    expect(content.iv).toBeDefined();
+    expect(content.tag).toBeDefined();
+    expect(content.ciphertext).toBeDefined();
+    expect(content.API_KEY).toBeUndefined();
 
     // Windows does not support Unix file permissions in the same way
     if (process.platform !== "win32") {
@@ -215,16 +254,17 @@ describe("writePluginSecret()", () => {
     writePluginSecret("testplugin", "KEY_A", "aaa");
     writePluginSecret("testplugin", "KEY_B", "bbb");
 
-    const content = JSON.parse(readFileSync(secretsPath("testplugin"), "utf-8"));
-    expect(content).toEqual({ KEY_A: "aaa", KEY_B: "bbb" });
+    const keys = listPluginSecretKeys("testplugin");
+    expect(keys).toEqual(expect.arrayContaining(["KEY_A", "KEY_B"]));
+    expect(keys).toHaveLength(2);
   });
 
   it("overwrites existing key value", () => {
     writePluginSecret("testplugin", "KEY", "old");
     writePluginSecret("testplugin", "KEY", "new");
 
-    const content = JSON.parse(readFileSync(secretsPath("testplugin"), "utf-8"));
-    expect(content.KEY).toBe("new");
+    const sdk = createSecretsSDK("testplugin", {}, mockLog);
+    expect(sdk.get("KEY")).toBe("new");
   });
 
   it("creates data directory if it does not exist", () => {
@@ -233,8 +273,16 @@ describe("writePluginSecret()", () => {
 
     writePluginSecret("testplugin", "KEY", "value");
 
-    const content = JSON.parse(readFileSync(secretsPath("testplugin"), "utf-8"));
-    expect(content.KEY).toBe("value");
+    const sdk = createSecretsSDK("testplugin", {}, mockLog);
+    expect(sdk.get("KEY")).toBe("value");
+  });
+
+  it("throws when no encryption key is configured", () => {
+    delete process.env.TELETON_SECRETS_KEY;
+    delete process.env.TELETON_WALLET_KEY;
+    expect(() => writePluginSecret("testplugin", "KEY", "value")).toThrow(
+      "No encryption key configured"
+    );
   });
 });
 
@@ -249,9 +297,9 @@ describe("deletePluginSecret()", () => {
     const result = deletePluginSecret("testplugin", "A");
 
     expect(result).toBe(true);
-    const content = JSON.parse(readFileSync(secretsPath("testplugin"), "utf-8"));
-    expect(content).toEqual({ B: "2" });
-    expect("A" in content).toBe(false);
+    const sdk = createSecretsSDK("testplugin", {}, mockLog);
+    expect(sdk.has("A")).toBe(false);
+    expect(sdk.get("B")).toBe("2");
   });
 
   it("returns false if key not found", () => {
@@ -266,6 +314,14 @@ describe("deletePluginSecret()", () => {
     const result = deletePluginSecret("noplugin", "KEY");
 
     expect(result).toBe(false);
+  });
+
+  it("throws when no encryption key is configured", () => {
+    delete process.env.TELETON_SECRETS_KEY;
+    delete process.env.TELETON_WALLET_KEY;
+    expect(() => deletePluginSecret("testplugin", "KEY")).toThrow(
+      "No encryption key configured"
+    );
   });
 });
 
@@ -296,6 +352,52 @@ describe("listPluginSecretKeys()", () => {
     const keys = listPluginSecretKeys("testplugin");
 
     expect(keys).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Encryption round-trip
+// ---------------------------------------------------------------------------
+describe("Encryption round-trip", () => {
+  it("written secrets can be read back via SDK", () => {
+    writePluginSecret("roundtrip", "TOKEN", "my-secret-token");
+    writePluginSecret("roundtrip", "PASSWORD", "my-password");
+    const sdk = createSecretsSDK("roundtrip", {}, mockLog);
+    expect(sdk.get("TOKEN")).toBe("my-secret-token");
+    expect(sdk.get("PASSWORD")).toBe("my-password");
+  });
+
+  it("file on disk is encrypted - no plaintext secrets visible", () => {
+    writePluginSecret("visibletest", "SECRET", "should-not-be-visible");
+    const raw = readFileSync(secretsPath("visibletest"), "utf-8");
+    expect(raw).not.toContain("should-not-be-visible");
+    const parsed = JSON.parse(raw);
+    expect(parsed.encrypted).toBe(true);
+  });
+
+  it("delete after write leaves no plaintext on disk", () => {
+    writePluginSecret("deletetest", "KEY1", "val1");
+    writePluginSecret("deletetest", "KEY2", "val2");
+    deletePluginSecret("deletetest", "KEY1");
+    const raw = readFileSync(secretsPath("deletetest"), "utf-8");
+    expect(raw).not.toContain("val1");
+    expect(raw).not.toContain("val2");
+    const sdk = createSecretsSDK("deletetest", {}, mockLog);
+    expect(sdk.has("KEY1")).toBe(false);
+    expect(sdk.get("KEY2")).toBe("val2");
+  });
+
+  it("reading encrypted file without key returns empty (does not crash SDK)", () => {
+    writePluginSecret("nokeytest", "TOKEN", "secret-value");
+    // Remove encryption key
+    delete process.env.TELETON_SECRETS_KEY;
+    delete process.env.TELETON_WALLET_KEY;
+    // SDK should not crash — should return undefined for all secrets
+    const sdk = createSecretsSDK("nokeytest", {}, mockLog);
+    expect(sdk.get("TOKEN")).toBeUndefined();
+    expect(sdk.has("TOKEN")).toBe(false);
+    // Restore key for other tests
+    setEnv("TELETON_SECRETS_KEY", TEST_KEY);
   });
 });
 

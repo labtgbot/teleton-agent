@@ -107,44 +107,60 @@ function readSecretsFile(pluginName: string): Record<string, string> {
 }
 
 /**
+ * Require an encryption key to be configured.
+ * Throws an error with setup instructions if no key is available.
+ *
+ * This prevents silent fallback to plaintext storage of secrets,
+ * addressing OWASP A07:2021 (Identification and Authentication Failures).
+ */
+export function requireEncryptionKey(): Buffer {
+  const key = resolveSecretsEncryptionKey();
+  if (!key) {
+    throw new Error(
+      "No encryption key configured. Refusing to write secrets as plaintext.\n" +
+        "Set one of the following environment variables:\n" +
+        "  TELETON_SECRETS_KEY — preferred, dedicated key for plugin secrets\n" +
+        "  TELETON_WALLET_KEY  — fallback, reuses the wallet encryption key\n" +
+        "Generate a key with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
+    );
+  }
+  return key;
+}
+
+/**
  * Write a secret to the persisted secrets file.
  * Used by admin commands (/plugin set).
- * Secrets are encrypted at rest when an encryption key is available.
+ *
+ * Requires an encryption key (TELETON_SECRETS_KEY or TELETON_WALLET_KEY).
+ * Throws if no key is configured — secrets are never stored as plaintext.
  */
 export function writePluginSecret(pluginName: string, key: string, value: string): void {
+  const encryptionKey = requireEncryptionKey();
   mkdirSync(SECRETS_DIR, { recursive: true, mode: 0o700 });
   const filePath = getSecretsPath(pluginName);
   const existing = readSecretsFile(pluginName);
   existing[key] = value;
 
-  const encKey = resolveSecretsEncryptionKey();
-  if (encKey) {
-    const encrypted = encryptJson(existing, encKey);
-    writeFileSync(filePath, JSON.stringify(encrypted, null, 2), { mode: 0o600 });
-  } else {
-    // Fallback: write plaintext (same as before — for backwards compatibility
-    // when no encryption key is configured at all)
-    writeFileSync(filePath, JSON.stringify(existing, null, 2), { mode: 0o600 });
-  }
+  const encrypted = encryptJson(existing, encryptionKey);
+  writeFileSync(filePath, JSON.stringify(encrypted, null, 2), { mode: 0o600 });
 }
 
 /**
  * Delete a secret from the persisted secrets file.
  * Used by admin commands (/plugin unset).
+ *
+ * Requires an encryption key (TELETON_SECRETS_KEY or TELETON_WALLET_KEY).
+ * Throws if no key is configured — secrets are never stored as plaintext.
  */
 export function deletePluginSecret(pluginName: string, key: string): boolean {
+  const encryptionKey = requireEncryptionKey();
   const existing = readSecretsFile(pluginName);
   if (!(key in existing)) return false;
   delete existing[key];
   const filePath = getSecretsPath(pluginName);
 
-  const encKey = resolveSecretsEncryptionKey();
-  if (encKey) {
-    const encrypted = encryptJson(existing, encKey);
-    writeFileSync(filePath, JSON.stringify(encrypted, null, 2), { mode: 0o600 });
-  } else {
-    writeFileSync(filePath, JSON.stringify(existing, null, 2), { mode: 0o600 });
-  }
+  const encrypted = encryptJson(existing, encryptionKey);
+  writeFileSync(filePath, JSON.stringify(encrypted, null, 2), { mode: 0o600 });
   return true;
 }
 
