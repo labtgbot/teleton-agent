@@ -78,8 +78,8 @@ describe("SecurityService", () => {
       expect(settings.rate_limit_rpm).toBe(60);
     });
 
-    it("returns null for numeric fields stored as 'null' string", () => {
-      // updateSettings stores null values as the literal string 'null'
+    it("returns null for numeric fields stored as 'null' string (backward compat)", () => {
+      // Legacy data may have 'null' string stored; getSettings must handle it gracefully
       db.prepare(
         "INSERT INTO security_settings (key, value) VALUES ('session_timeout_minutes', 'null')"
       ).run();
@@ -88,11 +88,8 @@ describe("SecurityService", () => {
       ).run();
 
       const settings = service.getSettings();
-      // Number('null') returns NaN, which the service code converts — but the stored string 'null'
-      // is from the updateSettings path. Let's verify the actual behaviour here.
-      // The code does: `timeout !== null ? Number(timeout) : DEFAULT_SETTINGS.session_timeout_minutes`
-      // When stored as 'null', timeout !== null is true, so it tries Number('null') = NaN
-      expect(settings.session_timeout_minutes).toBeNaN(); // known behaviour from stored 'null' string
+      expect(settings.session_timeout_minutes).toBeNull();
+      expect(settings.rate_limit_rpm).toBeNull();
     });
   });
 
