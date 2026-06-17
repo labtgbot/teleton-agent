@@ -58,27 +58,26 @@ export class SecurityService {
 
     return {
       session_timeout_minutes:
-        timeout !== null ? Number(timeout) : DEFAULT_SETTINGS.session_timeout_minutes,
+        timeout != null && timeout !== "null" && timeout !== ""
+          ? Number(timeout)
+          : DEFAULT_SETTINGS.session_timeout_minutes,
       ip_allowlist: allowlist ? (JSON.parse(allowlist) as string[]) : DEFAULT_SETTINGS.ip_allowlist,
-      rate_limit_rpm: rateLimit !== null ? Number(rateLimit) : DEFAULT_SETTINGS.rate_limit_rpm,
+      rate_limit_rpm:
+        rateLimit != null && rateLimit !== "null" && rateLimit !== ""
+          ? Number(rateLimit)
+          : DEFAULT_SETTINGS.rate_limit_rpm,
     };
   }
 
   updateSettings(patch: Partial<SecuritySettings>): SecuritySettings {
     if (patch.session_timeout_minutes !== undefined) {
-      this.setVal(
-        "session_timeout_minutes",
-        patch.session_timeout_minutes === null ? "null" : String(patch.session_timeout_minutes)
-      );
+      this.setVal("session_timeout_minutes", String(patch.session_timeout_minutes));
     }
     if (patch.ip_allowlist !== undefined) {
       this.setVal("ip_allowlist", JSON.stringify(patch.ip_allowlist));
     }
     if (patch.rate_limit_rpm !== undefined) {
-      this.setVal(
-        "rate_limit_rpm",
-        patch.rate_limit_rpm === null ? "null" : String(patch.rate_limit_rpm)
-      );
+      this.setVal("rate_limit_rpm", String(patch.rate_limit_rpm));
     }
     return this.getSettings();
   }
