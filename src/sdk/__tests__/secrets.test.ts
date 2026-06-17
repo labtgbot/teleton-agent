@@ -319,9 +319,7 @@ describe("deletePluginSecret()", () => {
   it("throws when no encryption key is configured", () => {
     delete process.env.TELETON_SECRETS_KEY;
     delete process.env.TELETON_WALLET_KEY;
-    expect(() => deletePluginSecret("testplugin", "KEY")).toThrow(
-      "No encryption key configured"
-    );
+    expect(() => deletePluginSecret("testplugin", "KEY")).toThrow("No encryption key configured");
   });
 });
 
