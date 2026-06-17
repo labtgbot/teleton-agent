@@ -71,6 +71,8 @@ function createTestDb(): Database.Database {
   return db;
 }
 
+let _txLtCounter = 1000n;
+
 function makeTx(opts: {
   coins?: bigint;
   fromAddr?: string;
@@ -78,6 +80,7 @@ function makeTx(opts: {
   hash?: Buffer;
   comment?: string | null;
   type?: string;
+  lt?: bigint;
 }) {
   const {
     coins = 1000000000n,
@@ -86,6 +89,7 @@ function makeTx(opts: {
     hash = TX_HASH_BUF,
     comment = "testuser",
     type = "internal",
+    lt = _txLtCounter++,
   } = opts;
 
   // Build a mock Cell body that simulates parseComment behavior
@@ -112,6 +116,7 @@ function makeTx(opts: {
       body,
     },
     now,
+    lt,
     hash: () => hash,
   };
 }
@@ -290,6 +295,64 @@ describe("PaymentVerifier", () => {
       const result = await verifyPayment(db, baseParams);
       expect(result.verified).toBe(false);
       expect(result.error).toBe("network down");
+    });
+
+    // ─── Cursor-based pagination tests ─────────────────────────
+
+    it("should find payment beyond first batch (cursor pagination)", async () => {
+      const now = Math.floor(Date.now() / 1000);
+
+      // Batch 1: 50 transactions, none matching (wrong memo)
+      const batch1 = Array.from({ length: 50 }, (_, i) =>
+        makeTx({ coins: 1000000000n, now, comment: `other_user_${i}`, lt: 1000n - BigInt(i) })
+      );
+
+      // Batch 2: payment is the first tx
+      const paymentTx = makeTx({ coins: 1000000000n, now, comment: "testuser", lt: 500n });
+      const batch2 = [paymentTx];
+
+      let callCount = 0;
+      mocks.fromNano.mockReturnValue("1.0");
+      (getCachedTonClient as Mock).mockResolvedValue({
+        getTransactions: vi.fn().mockImplementation((_addr: any, _opts: any) => {
+          callCount++;
+          if (callCount === 1) return Promise.resolve(batch1);
+          if (callCount === 2) return Promise.resolve(batch2);
+          return Promise.resolve([]);
+        }),
+      });
+
+      const result = await verifyPayment(db, baseParams);
+      expect(result.verified).toBe(true);
+      expect(result.txHash).toBe(TX_HASH_BUF.toString("hex"));
+      expect(callCount).toBe(2);
+    });
+
+    it("should stop scanning when oldest tx is before payment window", async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const oldNow = now - 60 * 60 * 24; // 24 hours ago
+
+      const batch1 = Array.from({ length: 10 }, (_, i) =>
+        makeTx({ coins: 1000000000n, now: oldNow, comment: `old_user_${i}`, lt: BigInt(1000 - i) })
+      );
+
+      mocks.fromNano.mockReturnValue("1.0");
+      (getCachedTonClient as Mock).mockResolvedValue({
+        getTransactions: vi.fn().mockResolvedValue(batch1),
+      });
+
+      const result = await verifyPayment(db, baseParams);
+      expect(result.verified).toBe(false);
+    });
+
+    it("should stop scanning when getTransactions returns empty", async () => {
+      mocks.fromNano.mockReturnValue("1.0");
+      (getCachedTonClient as Mock).mockResolvedValue({
+        getTransactions: vi.fn().mockResolvedValue([]),
+      });
+
+      const result = await verifyPayment(db, baseParams);
+      expect(result.verified).toBe(false);
     });
 
     // ─── T16: betAmount=0 edge case ─────────────────────────────

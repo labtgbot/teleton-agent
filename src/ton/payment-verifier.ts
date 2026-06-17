@@ -75,56 +75,83 @@ export async function verifyPayment(
     const client = await getCachedTonClient();
     const botAddress = Address.parse(botWalletAddress);
 
-    const transactions = await withBlockchainRetry(
-      () => client.getTransactions(botAddress, { limit: 20 }),
-      "getTransactions"
-    );
+    // Cursor-based pagination: scan transactions in batches until we either
+    // find a matching payment or exhaust the payment-age window.  This avoids
+    // the hard limit of 20 transactions that caused valid payments to be missed
+    // when the wallet was busy.
+    const oldestAllowedTime = Math.min(requestTime, Date.now() - maxPaymentAgeMinutes * 60 * 1000);
+    const oldestAllowedSec = Math.floor(oldestAllowedTime / 1000);
 
-    for (const tx of transactions) {
-      const inMsg = tx.inMessage;
-      if (inMsg?.info.type !== "internal") continue;
+    const BATCH_SIZE = 50;
+    const MAX_BATCHES = 10; // safety cap → max 500 transactions scanned
+    let lastLt: string | undefined;
+    let lastHash: string | undefined;
 
-      const tonAmount = parseFloat(fromNano(inMsg.info.value.coins));
-      if (!Number.isFinite(tonAmount)) continue;
-      const fromRaw = inMsg.info.src;
-      const txTime = tx.now * 1000;
-      const txHash = tx.hash().toString("hex");
+    for (let batch = 0; batch < MAX_BATCHES; batch++) {
+      const transactions = await withBlockchainRetry(() => {
+        const opts: { limit: number; lt?: string; hash?: string } = {
+          limit: BATCH_SIZE,
+        };
+        if (lastLt) opts.lt = lastLt;
+        if (lastHash) opts.hash = lastHash;
+        return client.getTransactions(botAddress, opts);
+      }, `getTransactions (batch ${batch})`);
+      if (transactions.length === 0) break;
 
-      if (tonAmount < betAmount * PAYMENT_TOLERANCE_RATIO) continue;
+      for (const tx of transactions) {
+        const inMsg = tx.inMessage;
+        if (inMsg?.info.type !== "internal") continue;
 
-      if (!fromRaw) continue;
-      const playerWallet = fromRaw.toString({ bounceable: false });
+        const tonAmount = parseFloat(fromNano(inMsg.info.value.coins));
+        if (!Number.isFinite(tonAmount)) continue;
+        const fromRaw = inMsg.info.src;
+        const txTime = tx.now * 1000;
+        const txHash = tx.hash().toString("hex");
 
-      if (txTime < requestTime) continue;
+        if (tonAmount < betAmount * PAYMENT_TOLERANCE_RATIO) continue;
 
-      const now = Date.now();
-      if (txTime < now - maxPaymentAgeMinutes * 60 * 1000) continue;
+        if (!fromRaw) continue;
+        const playerWallet = fromRaw.toString({ bounceable: false });
 
-      const comment = parseComment(inMsg.body);
-      if (!verifyMemo(comment, userId)) continue;
+        if (txTime < requestTime) continue;
 
-      const insertResult = db
-        .prepare(
-          `INSERT OR IGNORE INTO used_transactions (tx_hash, user_id, amount, game_type, used_at)
-           VALUES (?, ?, ?, ?, unixepoch())`
-        )
-        .run(txHash, userId, tonAmount, gameType);
+        const now = Date.now();
+        if (txTime < now - maxPaymentAgeMinutes * 60 * 1000) continue;
 
-      if (insertResult.changes === 0) {
-        continue;
+        const comment = parseComment(inMsg.body);
+        if (!verifyMemo(comment, userId)) continue;
+
+        const insertResult = db
+          .prepare(
+            `INSERT OR IGNORE INTO used_transactions (tx_hash, user_id, amount, game_type, used_at)
+             VALUES (?, ?, ?, ?, unixepoch())`
+          )
+          .run(txHash, userId, tonAmount, gameType);
+
+        if (insertResult.changes === 0) {
+          continue;
+        }
+
+        const date = new Date(txTime).toISOString();
+        const secondsAgo = Math.max(0, Math.floor((Date.now() - txTime) / 1000));
+
+        return {
+          verified: true,
+          txHash,
+          amount: `${tonAmount} TON`,
+          playerWallet,
+          date,
+          secondsAgo,
+        };
       }
 
-      const date = new Date(txTime).toISOString();
-      const secondsAgo = Math.max(0, Math.floor((Date.now() - txTime) / 1000));
+      // Prepare cursor for next batch from the last (oldest) transaction
+      const lastTx = transactions[transactions.length - 1];
+      lastLt = lastTx.lt.toString();
+      lastHash = lastTx.hash().toString("base64");
 
-      return {
-        verified: true,
-        txHash,
-        amount: `${tonAmount} TON`,
-        playerWallet,
-        date,
-        secondsAgo,
-      };
+      // If the oldest tx in this batch is already older than our window, stop
+      if (lastTx.now < oldestAllowedSec) break;
     }
 
     return {
