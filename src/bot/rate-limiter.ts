@@ -46,11 +46,6 @@ export class PluginRateLimiter {
       timestamps.length = 0;
     }
 
-    // Remove empty keys to prevent memory leak from many unique plugin/action combos
-    if (timestamps.length === 0) {
-      this.windows.delete(key);
-    }
-
     if (timestamps.length >= limit) {
       throw new Error(
         `Rate limit exceeded for plugin "${pluginName}" action "${action}": ${limit} per ${windowMs / 1000}s`
