@@ -265,4 +265,17 @@ describe("Encryption round-trip", () => {
     expect(sdk.has("KEY1")).toBe(false);
     expect(sdk.get("KEY2")).toBe("val2");
   });
+
+  it("reading encrypted file without key returns empty (does not crash SDK)", () => {
+    writePluginSecret("nokeytest", "TOKEN", "secret-value");
+    // Remove encryption key
+    delete process.env.TELETON_SECRETS_KEY;
+    delete process.env.TELETON_WALLET_KEY;
+    // SDK should not crash — should return undefined for all secrets
+    const sdk = createSecretsSDK("nokeytest", {}, mockLog);
+    expect(sdk.get("TOKEN")).toBeUndefined();
+    expect(sdk.has("TOKEN")).toBe(false);
+    // Restore key for other tests
+    setEnv("TELETON_SECRETS_KEY", TEST_KEY);
+  });
 });

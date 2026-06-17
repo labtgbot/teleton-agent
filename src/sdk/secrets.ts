@@ -118,17 +118,15 @@ function readSecretsFile(pluginName: string): Record<string, string> {
     if (parsed.encrypted === true) {
       const key = resolveSecretsEncryptionKey();
       if (!key) {
-        throw new Error(
-          `Secrets file for "${pluginName}" is encrypted but no encryption key is configured. ` +
-            "Set TELETON_SECRETS_KEY or TELETON_WALLET_KEY."
-        );
+        // Cannot decrypt without key — return empty to avoid crashing the SDK.
+        // The user must set TELETON_SECRETS_KEY to access encrypted secrets.
+        return {};
       }
       return decryptSecrets(parsed as EncryptedSecretsFile, key);
     }
 
     return parsed as Record<string, string>;
-  } catch (err) {
-    if (err instanceof Error && err.message.includes("encryption key")) throw err;
+  } catch {
     return {};
   }
 }
