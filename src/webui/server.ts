@@ -140,16 +140,39 @@ export class WebUIServer {
       })
     );
 
+    // SECURITY FIX H-04: Rate limiting to prevent brute-force attacks
+    const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+    this.app.use("*", async (c, next) => {
+      const ip = c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown";
+      const now = Date.now();
+      const entry = rateLimitMap.get(ip);
+
+      if (!entry || now > entry.resetAt) {
+        rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
+      } else {
+        entry.count++;
+        if (entry.count > 120) { // 120 requests per minute
+          return c.json({ success: false, error: "Rate limit exceeded" }, 429);
+        }
+      }
+
+      await next();
+    });
+
     // Security headers for all responses
+    // SECURITY FIX M-03: Added Content-Security-Policy header
     this.app.use("*", async (c, next) => {
       await next();
       c.res.headers.set("X-Content-Type-Options", "nosniff");
       c.res.headers.set("X-Frame-Options", "DENY");
       c.res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+      c.res.headers.set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ws: wss:");
     });
 
     // Auth for all /api/* routes
-    // Accepts: HttpOnly cookie > Bearer header > ?token= query param (fallback)
+    // Accepts: HttpOnly cookie > Bearer header
+    // SECURITY FIX H-05: Removed ?token= query param fallback — tokens in URLs
+    // can be leaked via browser history, referrer headers, and server logs
     this.app.use("/api/*", async (c, next) => {
       // 1. Check HttpOnly session cookie (primary — browser)
       const cookieToken = getCookie(c, COOKIE_NAME);
@@ -164,12 +187,6 @@ export class WebUIServer {
         if (match && safeCompare(match[1], this.authToken)) {
           return next();
         }
-      }
-
-      // 3. Check ?token= query param (fallback — backward compat)
-      const queryToken = c.req.query("token");
-      if (queryToken && safeCompare(queryToken, this.authToken)) {
-        return next();
       }
 
       return c.json({ success: false, error: "Unauthorized" }, 401);

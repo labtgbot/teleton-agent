@@ -11,6 +11,12 @@ const log = createLogger("TON");
 
 const DEFAULT_MAX_PAYMENT_AGE_MINUTES = 10;
 
+// SECURITY FIX C-04: Serializing mutex for payment verification
+// Prevents TOCTOU race conditions where concurrent verifications could
+// both pass the "not used" check and spend the same transaction.
+// Uses a Promise-based queue so concurrent callers serialize on the same promise chain.
+let _verifyChain = Promise.resolve();
+
 const OP_COMMENT = 0x0;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Cell body type varies at runtime
@@ -62,6 +68,12 @@ export async function verifyPayment(
   db: Database.Database,
   params: VerifyPaymentParams
 ): Promise<PaymentVerification> {
+  // SECURITY FIX C-04: Serialize all payment verifications through a single
+  // promise chain to prevent TOCTOU races on the used_transactions table.
+  const prev = _verifyChain;
+  let resolveNew: () => void = () => {};
+  _verifyChain = new Promise<void>((r) => { resolveNew = r; });
+  await prev;
   try {
     const {
       botWalletAddress,
@@ -170,6 +182,9 @@ If you already sent, wait a moment and try again.`,
       verified: false,
       error: getErrorMessage(error),
     };
+  } finally {
+    // SECURITY FIX C-04: Release mutex for next verification
+    resolveNew();
   }
 }
 

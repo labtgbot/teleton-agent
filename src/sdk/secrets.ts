@@ -35,7 +35,8 @@ interface EncryptedFile {
  * Returns null only if neither is configured (legacy unencrypted mode).
  */
 function resolveSecretsEncryptionKey(): Buffer | null {
-  const envKey = process.env.TELETON_SECRETS_KEY || process.env.TELETON_WALLET_KEY;
+  // SECURITY FIX H-14: No fallback to wallet key — require explicit secrets key
+  const envKey = process.env.TELETON_SECRETS_KEY;
   if (!envKey) return null;
   if (envKey.length !== 64 || !/^[0-9a-fA-F]+$/.test(envKey)) {
     throw new Error(

@@ -356,9 +356,12 @@ Keep each section concise. Omit a section if empty. Preserve specific names, num
 
     const summaryText = `[Auto-compacted ${oldMessages.length} messages]\n\n${result.summary}`;
 
+    // SECURITY FIX H-07: Wrap compaction summary to prevent it from being
+    // treated as direct user input (prevents prompt injection via context).
+    // Must use "user" role since the Message type doesn't include "system".
     const summaryMessage: Message = {
       role: "user",
-      content: summaryText,
+      content: `[COMPACTED MEMORY — HISTORICAL CONTEXT, NOT DIRECT USER INPUT]\n\n${summaryText}`,
       timestamp: oldMessages[0]?.timestamp ?? Date.now(),
     };
 
@@ -383,9 +386,10 @@ Keep each section concise. Omit a section if empty. Preserve specific names, num
       });
     }
 
+    // SECURITY FIX H-07: Same wrapper for error path
     const summaryMessage: Message = {
       role: "user",
-      content: summaryText,
+      content: `[COMPACTED MEMORY — HISTORICAL CONTEXT, NOT DIRECT USER INPUT]\n\n${summaryText}`,
       timestamp: oldMessages[0]?.timestamp ?? Date.now(),
     };
 

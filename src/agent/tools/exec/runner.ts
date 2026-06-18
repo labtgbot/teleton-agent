@@ -2,6 +2,7 @@ import { spawn, type SpawnOptions } from "child_process";
 import fs from "fs";
 import type { ExecResult, RunOptions, RunSecurityOptions } from "./types.js";
 import { createLogger } from "../../../utils/logger.js";
+import { execConcurrency } from "./concurrency.js";
 
 const log = createLogger("Exec");
 
@@ -17,7 +18,6 @@ const KILL_GRACE_MS = 5000;
 const PDEATHSIG_HELPER = new URL("../../../../bin/prctl-pdeathsig", import.meta.url);
 
 export const MAX_CONCURRENT = 10;
-let activeCount = 0;
 
 /**
  * Registry of all spawned child processes for cleanup on agent stop.
@@ -82,15 +82,13 @@ export function sanitizeEnv(env: NodeJS.ProcessEnv): Record<string, string | und
   return out;
 }
 
-export function runCommand(
+// SECURITY FIX M-01: Use the concurrency limiter semaphore for atomic acquire/release
+export async function runCommand(
   command: string,
   options: RunOptions,
   security?: RunSecurityOptions
 ): Promise<ExecResult> {
-  if (activeCount >= MAX_CONCURRENT) {
-    throw new Error(`Max concurrent processes (${MAX_CONCURRENT}) reached`);
-  }
-  activeCount++;
+  await execConcurrency.acquire(MAX_CONCURRENT);
 
   const { timeout, maxOutput } = options;
   const { cwd, env: securityEnv } = security ?? {};
@@ -133,7 +131,7 @@ export function runCommand(
     const finish = (exitCode: number | null, signal: string | null) => {
       if (resolved) return;
       resolved = true;
-      activeCount--;
+      execConcurrency.release();
       spawnedProcesses.delete(child);
       clearTimeout(timeoutTimer);
       clearTimeout(killTimer);
@@ -216,16 +214,14 @@ export function ensureSandboxDir(sandboxDir: string): void {
  * Uses sanitizeEnv() for child process env. Respects MAX_CONCURRENT limit.
  * This is the injection-safe alternative to string-interpolated shell commands.
  */
-export function spawnInstallCommand(
+// SECURITY FIX M-01: Use the concurrency limiter semaphore
+export async function spawnInstallCommand(
   manager: "apt" | "pip" | "npm" | "docker",
   packages: string[],
   timeout: number,
   maxOutput: number
 ): Promise<ExecResult> {
-  if (activeCount >= MAX_CONCURRENT) {
-    throw new Error(`Max concurrent processes (${MAX_CONCURRENT}) reached`);
-  }
-  activeCount++;
+  await execConcurrency.acquire(MAX_CONCURRENT);
 
   const argsMap: Record<string, string[]> = {
     apt: ["install", "-y", ...packages],
@@ -256,7 +252,7 @@ export function spawnInstallCommand(
     const finish = (exitCode: number | null, signal: string | null) => {
       if (resolved) return;
       resolved = true;
-      activeCount--;
+      execConcurrency.release();
       clearTimeout(timeoutTimer);
       resolve({
         stdout,

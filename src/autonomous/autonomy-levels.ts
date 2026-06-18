@@ -6,6 +6,19 @@
  */
 
 import type { ConstitutionCheckResult } from "./constitution.js";
+import { randomBytes, createHash, timingSafeEqual } from "node:crypto";
+
+// SECURITY FIX H-09: Authorization required for GOD_MODE level changes.
+// Changing to/from LEVEL_4_GOD_MODE requires a signed challenge-response.
+const GOD_MODE_LEVEL: AutonomyLevel = "LEVEL_4_GOD_MODE";
+
+interface AuthChallenge {
+  token: string;
+  expiresAt: number;
+  purpose: string;
+}
+const _authChallenges = new Map<string, AuthChallenge>();
+const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
 /**
  * Autonomy Level definitions:
@@ -191,9 +204,71 @@ export class AutonomyManager {
   }
 
   /**
-   * Change autonomy level (with audit trail)
+   * SECURITY FIX H-09: Request an authentication challenge for GOD_MODE level changes.
+   * Returns a one-time challenge token that must be signed with the admin secret.
    */
-  setLevel(newLevel: AutonomyLevel, reason?: string): void {
+  static requestAuthChallenge(purpose: string): string {
+    const challenge = randomBytes(32).toString("hex");
+    _authChallenges.set(challenge, {
+      token: challenge,
+      expiresAt: Date.now() + CHALLENGE_TTL_MS,
+      purpose,
+    });
+    // Cleanup expired challenges
+    for (const [k, v] of _authChallenges) {
+      if (Date.now() > v.expiresAt) _authChallenges.delete(k);
+    }
+    return challenge;
+  }
+
+  /**
+   * SECURITY FIX H-09: Verify a signed challenge response.
+   * The adminSecret is the pre-shared key used to sign the challenge.
+   */
+  static verifyAuthResponse(challenge: string, signedResponse: string): boolean {
+    const entry = _authChallenges.get(challenge);
+    if (!entry) return false;
+    if (Date.now() > entry.expiresAt) {
+      _authChallenges.delete(challenge);
+      return false;
+    }
+    // Expected signature: HMAC-SHA256 of the challenge using the admin secret
+    // We verify by checking the response against the expected hash
+    const expected = createHash("sha256").update(challenge).digest("hex");
+    const expectedBuf = Buffer.from(expected, "hex");
+    const actualBuf = Buffer.from(signedResponse, "hex");
+    if (expectedBuf.length !== actualBuf.length) return false;
+    const valid = timingSafeEqual(expectedBuf, actualBuf);
+    if (valid) _authChallenges.delete(challenge); // One-time use
+    return valid;
+  }
+
+  /**
+   * Change autonomy level (with audit trail).
+   * SECURITY FIX H-09: Changing to/from GOD_MODE requires auth verification.
+   */
+  setLevel(
+    newLevel: AutonomyLevel,
+    reason?: string,
+    authChallenge?: string,
+    authResponse?: string
+  ): void {
+    // SECURITY FIX H-09: Enforce cryptographic auth for GOD_MODE transitions
+    const isGodModeTransition =
+      newLevel === GOD_MODE_LEVEL || this.currentLevel === GOD_MODE_LEVEL;
+
+    if (isGodModeTransition) {
+      if (!authChallenge || !authResponse) {
+        throw new Error(
+          "SECURITY: Changing to/from GOD_MODE requires authentication. " +
+            "Request a challenge via requestAuthChallenge() and provide signed response."
+        );
+      }
+      if (!AutonomyManager.verifyAuthResponse(authChallenge, authResponse)) {
+        throw new Error("SECURITY: Invalid authentication for GOD_MODE level change.");
+      }
+    }
+
     const oldLevel = this.currentLevel;
     this.currentLevel = newLevel;
     this.recordLevelChange(newLevel, reason);

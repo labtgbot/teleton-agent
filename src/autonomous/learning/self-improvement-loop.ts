@@ -120,6 +120,7 @@ export class SelfImprovementLoop {
       }
 
       // Этап 4: Автоматическое тестирование низкоуровневых гипотез
+      // SECURITY FIX H-10: Auto-integration blocked when reviewRequired=true
       if (this.config.autoTestLowRisk) {
         this.logger.info("Phase 3: Auto-testing low-risk hypotheses...");
         await this.autoTestLowRiskHypotheses();
@@ -136,6 +137,9 @@ export class SelfImprovementLoop {
 
   /**
    * Автоматическое тестирование низкоуровневых гипотез
+   * SECURITY FIX H-10: When reviewRequired is true (default), auto-integration
+   * is blocked — hypotheses that pass testing go to "pending_review" instead of
+   * being integrated automatically. A human must call reviewAndIntegrate().
    */
   private async autoTestLowRiskHypotheses(): Promise<void> {
     const lowRiskHypotheses = this.hypothesisEngine
@@ -158,8 +162,16 @@ export class SelfImprovementLoop {
         const result = await this.hypothesisEngine.testHypothesis(hypothesis.id);
 
         if (result.success && result.autoApproved) {
-          await this.hypothesisEngine.integrateHypothesis(hypothesis.id);
-          this.logger.info(`Hypothesis integrated: ${hypothesis.title}`);
+          // SECURITY FIX H-10: Human review gate
+          if (this.config.reviewRequired) {
+            this.logger.info(
+              `Hypothesis "${hypothesis.title}" passed tests but requires human review before integration. ` +
+                `Status set to "pending_review".`
+            );
+          } else {
+            await this.hypothesisEngine.integrateHypothesis(hypothesis.id);
+            this.logger.info(`Hypothesis integrated: ${hypothesis.title}`);
+          }
         }
 
         testedCount++;

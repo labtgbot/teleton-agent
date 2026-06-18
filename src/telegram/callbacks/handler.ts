@@ -13,6 +13,11 @@ export type CallbackHandler = (data: {
   userId: number;
 }) => Promise<void>;
 
+// SECURITY FIX C-05+H-12: Set of legacy (unbound) action prefixes
+// These are actions that pre-date user-binding and cannot be authorized.
+// New callbacks should always include userId binding.
+const LEGACY_UNBOUND_ACTIONS = new Set(["copy_addr", "copy_memo", "refresh"]);
+
 export class CallbackQueryHandler {
   private handlers: Map<string, CallbackHandler> = new Map();
 
@@ -36,9 +41,36 @@ export class CallbackQueryHandler {
 
       log.info(`[Callback] Received: data="${data}" from user ${userId} in chat ${chatId}`);
 
+      // SECURITY FIX C-05+H-12: Extract action and check user binding
+      // Parse versioned format: "v2:action:dealId:userId" or legacy: "action:dealId"
       const parts = data.split(":");
-      const action = parts[0];
-      const params = parts.slice(1);
+      let action: string;
+      let boundUserId: number | null = null;
+
+      if (parts.length === 4 && parts[0] === "v2") {
+        // Versioned format with userId binding
+        action = parts[1];
+        boundUserId = parseInt(parts[3], 10);
+      } else if (parts.length >= 2) {
+        // Legacy format: action is first part
+        action = parts[0];
+      } else {
+        log.warn(`[Callback] Malformed data: "${data}"`);
+        await this.answerCallback(queryId, "Invalid callback");
+        return;
+      }
+
+      // SECURITY FIX C-05+H-12: Verify callback is bound to the clicking user
+      // This prevents User A from triggering User B's callbacks (IDOR attack)
+      if (boundUserId !== null && boundUserId !== userId) {
+        if (!LEGACY_UNBOUND_ACTIONS.has(action)) {
+          log.warn(
+            `[Callback] Authorization failed: callback bound to user ${boundUserId} but clicked by user ${userId}`
+          );
+          await this.answerCallback(queryId, "⛔ This action is not for you.");
+          return;
+        }
+      }
 
       const handler = this.handlers.get(action);
       if (!handler) {
@@ -47,9 +79,18 @@ export class CallbackQueryHandler {
         return;
       }
 
+      // For non-legacy actions, require userId binding
+      if (boundUserId === null && !LEGACY_UNBOUND_ACTIONS.has(action)) {
+        log.warn(
+          `[Callback] Rejecting unbound callback action "${action}" from user ${userId}`
+        );
+        await this.answerCallback(queryId, "⛔ Invalid callback format.");
+        return;
+      }
+
       await handler({
         action,
-        params,
+        params: parts.slice(1),
         queryId,
         chatId,
         messageId,
