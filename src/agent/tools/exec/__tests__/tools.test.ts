@@ -18,7 +18,7 @@ vi.mock("../runner.js", () => ({
 // Mock concurrency to avoid real semaphore blocking across tests
 vi.mock("../concurrency.js", () => ({
   execConcurrency: {
-    acquire: vi.fn().mockResolvedValue(undefined),
+    acquire: vi.fn(),
     release: vi.fn(),
     count: 0,
   },

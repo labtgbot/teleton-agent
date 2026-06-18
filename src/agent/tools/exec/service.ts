@@ -42,7 +42,7 @@ export function createExecServiceExecutor(
     const { timeout, max_output } = execConfig.limits;
     const command = `systemctl ${action} ${name}`;
 
-    await execConcurrency.acquire(execConfig.security.max_concurrent);
+    execConcurrency.acquire(execConfig.security.max_concurrent);
 
     let auditId: number | undefined;
     if (execConfig.audit.log_commands) {

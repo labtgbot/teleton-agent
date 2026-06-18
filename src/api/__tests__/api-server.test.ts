@@ -292,7 +292,7 @@ describe("Management API", () => {
       });
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body).toHaveProperty("node");
+      expect(body).toHaveProperty("teleton");
       expect(body).toHaveProperty("apiVersion");
     });
 
@@ -537,7 +537,7 @@ describe("Management API", () => {
       expect(body.state).toBe("stopped");
     });
 
-    // Test 17
+    // Test 17 — SECURITY FIX M-05: system info no longer exposes total/free memory
     it("GET /v1/system/info returns CPU/RAM info", async () => {
       const app = createTestApp({ skipAuth: true });
       const res = await app.request("/v1/system/info");
@@ -547,8 +547,14 @@ describe("Management API", () => {
       expect(body).toHaveProperty("memory");
       expect(body).toHaveProperty("uptime");
       expect(body.cpu).toHaveProperty("cores");
-      expect(body.memory).toHaveProperty("total");
-      expect(body.memory).toHaveProperty("free");
+      expect(body.cpu).toHaveProperty("loadAvg");
+      expect(body.memory).toHaveProperty("heapUsed");
+      expect(body.memory).toHaveProperty("heapTotal");
+      // SECURITY: total/free memory and system uptime are no longer exposed
+      expect(body.memory).not.toHaveProperty("total");
+      expect(body.memory).not.toHaveProperty("free");
+      expect(body.memory).not.toHaveProperty("used");
+      expect(body.uptime).not.toHaveProperty("system");
     });
   });
 
@@ -641,32 +647,31 @@ describe("Management API", () => {
       app = createTestApp({ skipAuth: true });
     });
 
-    // Test 23
+    // Test 23 — /version returns teleton version and API version
     it("GET /v1/system/version returns correct fields", async () => {
       const res = await app.request("/v1/system/version");
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toHaveProperty("teleton");
-      expect(body).toHaveProperty("node");
-      expect(body).toHaveProperty("os");
-      expect(body).toHaveProperty("arch");
       expect(body).toHaveProperty("apiVersion");
       expect(body.apiVersion).toBe("1.0.0");
-      expect(body.node).toMatch(/^v\d+/);
     });
 
-    // Test 24
+    // Test 24 — SECURITY FIX M-05: total/free/system info no longer exposed
     it("GET /v1/system/info returns CPU, memory, and uptime", async () => {
       const res = await app.request("/v1/system/info");
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.cpu.cores).toBeGreaterThan(0);
-      expect(body.memory.total).toBeGreaterThan(0);
-      expect(body.memory.free).toBeGreaterThan(0);
-      expect(body.memory.used).toBeGreaterThan(0);
+      expect(body.cpu.loadAvg).toBeDefined();
       expect(body.memory.heapUsed).toBeGreaterThan(0);
+      expect(body.memory.heapTotal).toBeGreaterThan(0);
       expect(body.uptime.process).toBeGreaterThanOrEqual(0);
-      expect(body.uptime.system).toBeGreaterThan(0);
+      // SECURITY: these fields are no longer exposed
+      expect(body.memory).not.toHaveProperty("total");
+      expect(body.memory).not.toHaveProperty("free");
+      expect(body.memory).not.toHaveProperty("used");
+      expect(body.uptime).not.toHaveProperty("system");
     });
 
     // Test 25

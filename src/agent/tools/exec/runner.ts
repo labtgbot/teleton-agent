@@ -88,7 +88,7 @@ export async function runCommand(
   options: RunOptions,
   security?: RunSecurityOptions
 ): Promise<ExecResult> {
-  await execConcurrency.acquire(MAX_CONCURRENT);
+  execConcurrency.acquire(MAX_CONCURRENT);
 
   const { timeout, maxOutput } = options;
   const { cwd, env: securityEnv } = security ?? {};
@@ -221,7 +221,7 @@ export async function spawnInstallCommand(
   timeout: number,
   maxOutput: number
 ): Promise<ExecResult> {
-  await execConcurrency.acquire(MAX_CONCURRENT);
+  execConcurrency.acquire(MAX_CONCURRENT);
 
   const argsMap: Record<string, string[]> = {
     apt: ["install", "-y", ...packages],
