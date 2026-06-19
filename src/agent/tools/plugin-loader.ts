@@ -16,6 +16,7 @@ import { readdirSync, readFileSync, existsSync, statSync } from "fs";
 import { join } from "path";
 import { pathToFileURL } from "url";
 import { execFile } from "child_process";
+import { createHash } from "node:crypto";
 import { getPluginPriorities } from "./plugin-config-store.js";
 import { promisify } from "util";
 
@@ -51,6 +52,55 @@ import { createLogger, isVerbose } from "../../utils/logger.js";
 const log = createLogger("PluginLoader");
 
 const PLUGIN_DATA_DIR = join(TELETON_ROOT, "plugins", "data");
+
+// SECURITY FIX H-02: Plugin code signing verification
+// Plugins can optionally include a .sig file with a SHA-256 hash of the main module.
+// When config.capabilities.exec.security.verifyPluginSignatures is true, unsigned plugins are rejected.
+const SIGNATURE_FILE = ".sig";
+
+/**
+ * Verify a plugin's code signature if signature verification is enabled.
+ * The .sig file should contain a SHA-256 hash of the plugin's index.js content.
+ */
+function verifyPluginSignature(
+  pluginDir: string,
+  modulePath: string,
+  pluginName: string,
+  config: Config
+): void {
+  // Only enforce if explicitly configured
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- verifyPluginSignatures may be added by config extension
+  if ((config.capabilities?.exec?.security as any)?.verifyPluginSignatures !== true) {
+    return;
+  }
+
+  const sigPath = join(pluginDir, SIGNATURE_FILE);
+  if (!existsSync(sigPath)) {
+    throw new Error(
+      `SECURITY H-02: Plugin "${pluginName}" has no signature file (${SIGNATURE_FILE}). ` +
+        `Unsigned plugins are rejected when capabilities.exec.security.verifyPluginSignatures is enabled.`
+    );
+  }
+
+  try {
+    const expectedHash = readFileSync(sigPath, "utf-8").trim();
+    const actualHash = createHash("sha256").update(readFileSync(modulePath)).digest("hex");
+
+    if (expectedHash !== actualHash) {
+      throw new Error(
+        `SECURITY H-02: Plugin "${pluginName}" signature mismatch. ` +
+          `The plugin code may have been modified after signing.`
+      );
+    }
+
+    log.info(`[${pluginName}] Code signature verified`);
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith("SECURITY H-02:")) {
+      throw err;
+    }
+    throw new Error(`SECURITY H-02: Failed to verify signature for "${pluginName}": ${err}`);
+  }
+}
 
 interface RawPluginExports {
   tools?: SimpleToolDef[] | ((sdk: PluginSDK) => SimpleToolDef[]);
@@ -436,7 +486,7 @@ export async function loadEnhancedPlugins(
     pluginPaths.map(async ({ entry, path }) => {
       const moduleUrl = pathToFileURL(path).href;
       const mod = (await import(moduleUrl)) as RawPluginExports;
-      return { entry, mod };
+      return { entry, mod, path };
     })
   );
 
@@ -449,13 +499,21 @@ export async function loadEnhancedPlugins(
       continue;
     }
 
-    const { entry, mod } = result.value;
+    const { entry, mod, path: modulePath } = result.value;
 
     try {
       if (!mod.tools || (typeof mod.tools !== "function" && !Array.isArray(mod.tools))) {
         log.warn(`Plugin "${entry}": no 'tools' array or function exported, skipping`);
         continue;
       }
+
+      // SECURITY FIX H-02: Verify plugin code signature if configured
+      // For directory plugins (index.js), check .sig in the plugin directory.
+      // For single-file plugins (pluginName.js), check .sig alongside the file.
+      const pluginDir = modulePath.endsWith("index.js")
+        ? join(pluginsDir, entry)
+        : join(pluginsDir, entry.replace(/\.js$/, ""));
+      verifyPluginSignature(pluginDir, modulePath, entry, config);
 
       const adapted = adaptPlugin(
         mod,

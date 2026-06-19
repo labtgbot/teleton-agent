@@ -6,9 +6,18 @@
  * any number of extra sources configured in config.marketplace.extra_sources.
  */
 
-import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { createHash } from "node:crypto";
 import { WORKSPACE_PATHS } from "../../workspace/paths.js";
 import { adaptPlugin, ensurePluginDeps } from "../../agent/tools/plugin-loader.js";
 import type { ToolRegistry } from "../../agent/tools/registry.js";
@@ -73,8 +82,12 @@ function deriveSourceUrls(registryUrl: string): { pluginBaseUrl: string; githubA
         const [owner, repo, branch, ...rest] = parts;
         // base URL (strip the filename)
         const fileParts = rest.slice(0, -1);
-        const pluginBaseUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}${fileParts.length ? "/" + fileParts.join("/") : ""}`;
-        const githubApiBase = `https://api.github.com/repos/${owner}/${repo}/contents${fileParts.length ? "/" + fileParts.join("/") : ""}`;
+        const pluginBaseUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}${
+          fileParts.length ? "/" + fileParts.join("/") : ""
+        }`;
+        const githubApiBase = `https://api.github.com/repos/${owner}/${repo}/contents${
+          fileParts.length ? "/" + fileParts.join("/") : ""
+        }`;
         return { pluginBaseUrl, githubApiBase };
       }
     }
@@ -408,6 +421,22 @@ export class MarketplaceService {
       // Download the entire plugin directory from GitHub
       await this.downloadDir(entry.path, pluginDir, srcDescriptor.githubApiBase);
 
+      // SECURITY FIX C-03: Verify plugin integrity hash if provided in registry
+      if (entry.integrity) {
+        const computedHash = this.computePluginHash(pluginDir);
+        if (computedHash !== entry.integrity) {
+          throw new Error(
+            `Integrity check failed for plugin "${pluginId}": ` +
+              `expected ${entry.integrity.slice(0, 16)}... but got ${computedHash.slice(0, 16)}... ` +
+              `The plugin may have been tampered with.`
+          );
+        }
+        log.info(`[${pluginId}] Integrity verified (${computedHash.slice(0, 16)}...)`);
+      } else if (srcDescriptor.isOfficial) {
+        // Warn for official plugins without integrity hashes
+        log.warn(`[${pluginId}] No integrity hash in registry — cannot verify plugin authenticity`);
+      }
+
       // Install npm deps if package.json exists
       await ensurePluginDeps(pluginDir, pluginId);
 
@@ -588,6 +617,38 @@ export class MarketplaceService {
         writeFileSync(target, content, { encoding: "utf-8", mode: 0o600 });
       }
     }
+  }
+
+  /**
+   * SECURITY FIX C-03: Compute a deterministic SHA-256 hash of all plugin files.
+   * Used to verify plugin integrity against the registry's declared hash.
+   */
+  private computePluginHash(pluginDir: string): string {
+    const hash = createHash("sha256");
+    // Walk all files in the plugin directory, sorted for determinism
+    const files = this.walkDir(pluginDir).sort();
+    for (const file of files) {
+      const relPath = file.slice(pluginDir.length + 1);
+      hash.update(relPath, "utf-8");
+      const content = readFileSync(file);
+      hash.update(content);
+    }
+    return hash.digest("hex");
+  }
+
+  /** Recursively list all files in a directory. */
+  private walkDir(dir: string): string[] {
+    const results: string[] = [];
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      const stat = statSync(full);
+      if (stat.isDirectory()) {
+        results.push(...this.walkDir(full));
+      } else {
+        results.push(full);
+      }
+    }
+    return results;
   }
 
   /** Clear all registry and manifest caches (e.g. after adding/removing a source). */

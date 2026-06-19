@@ -57,6 +57,8 @@ export interface RegistryEntry {
   author: string;
   tags: string[];
   path: string;
+  /** SECURITY FIX C-03: SHA-256 integrity hash for plugin verification (hex-encoded) */
+  integrity?: string;
 }
 
 export interface MarketplacePlugin {

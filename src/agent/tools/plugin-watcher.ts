@@ -51,8 +51,16 @@ export class PluginWatcher {
 
   /**
    * Start watching the plugins directory for changes.
+   * SECURITY FIX H-13: Only enable hot-reload when explicitly configured (dev mode).
    */
   start(): void {
+    // SECURITY: Only enable hot-reload in dev mode — prevents unauthorized
+    // code reload in production environments
+    if (!this.deps.config.dev?.hot_reload) {
+      log.info("Plugin watcher disabled (dev.hot_reload not enabled)");
+      return;
+    }
+
     this.watcher = chokidar.watch(this.pluginsDir, {
       ignoreInitial: true,
       awaitWriteFinish: {

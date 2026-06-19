@@ -148,6 +148,14 @@ export class AuditService {
     };
   }
 
+  /** Sanitize a CSV field value to prevent formula injection (CWE-1236) */
+  sanitizeCsvField(value: string): string {
+    if (/^[=\+\-\@]/.test(value)) {
+      return `'${value}`;
+    }
+    return value;
+  }
+
   /** Export all entries matching filters as CSV string. */
   exportCsv(
     opts: {
@@ -184,7 +192,7 @@ export class AuditService {
         [
           r.id,
           r.action,
-          `"${r.details.replace(/"/g, '""')}"`,
+          `"${this.sanitizeCsvField(r.details).replace(/"/g, '""')}"`,
           r.ip ?? "",
           r.user_agent ?? "",
           ts,

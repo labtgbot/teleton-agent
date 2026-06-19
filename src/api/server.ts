@@ -5,6 +5,7 @@ import { streamSSE } from "hono/streaming";
 import { serve, type ServerType } from "@hono/node-server";
 import type { HttpBindings } from "@hono/node-server";
 import { createServer as createHttpsServer } from "node:https";
+import { cors } from "hono/cors";
 import { randomBytes, createHash } from "node:crypto";
 import type { Server as HttpServer } from "node:http";
 
@@ -173,6 +174,34 @@ export class ApiServer {
       c.res.headers.set("X-Frame-Options", "DENY");
       c.res.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
     });
+
+    // 5. SECURITY FIX H-11: CORS for Management API
+    // Restrict cross-origin requests to same-origin only since this is a
+    // local management API that should not be accessible from external sites.
+    this.app.use(
+      "*",
+      cors({
+        origin: (origin) => {
+          // Allow requests with no origin (same-origin, curl, etc.)
+          if (!origin) return origin ?? "";
+          // Allow localhost origins on any port
+          try {
+            const url = new URL(origin);
+            if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+              return origin;
+            }
+          } catch {
+            // ignore
+          }
+          // Deny all other origins
+          return "";
+        },
+        credentials: true,
+        allowMethods: ["GET", "HEAD", "PUT", "POST", "DELETE", "PATCH"],
+        allowHeaders: ["Content-Type", "Authorization", "X-Request-ID"],
+        maxAge: 3600,
+      })
+    );
   }
 
   private setupRoutes(): void {
@@ -403,11 +432,12 @@ export class ApiServer {
         });
       }
 
-      return c.json(
-        createProblem(500, "Internal Server Error", err.message || "An unexpected error occurred"),
-        500,
-        { "Content-Type": "application/problem+json" }
-      );
+      // SECURITY FIX M-02: Never leak internal error details to clients
+      const refId = randomBytes(4).toString("hex");
+      log.error({ refId }, `Internal error detail: ${err.message}`);
+      return c.json(createProblem(500, "Internal Server Error", `Reference: ${refId}`), 500, {
+        "Content-Type": "application/problem+json",
+      });
     });
   }
 

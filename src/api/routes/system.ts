@@ -33,37 +33,33 @@ const cachedVersion = readPackageVersion();
 export function createSystemRoutes() {
   const app = new Hono();
 
+  // SECURITY FIX M-05: /version is public (minimal info), /info requires admin auth
   app.get("/version", (c) => {
     return c.json({
       teleton: cachedVersion,
-      node: process.version,
-      os: process.platform,
-      arch: process.arch,
       apiVersion: API_VERSION,
     });
   });
 
+  // SECURITY FIX M-05: Detailed system info is restricted.
+  // This endpoint exposes CPU model, cores, load average, memory usage, and uptime
+  // — information useful for fingerprinting and planning attacks.
+  // Only accessible via the WebUI (which requires auth) since these routes are
+  // registered behind the /api/* auth middleware.
   app.get("/info", (c) => {
     const cpus = os.cpus();
-    const totalMem = os.totalmem();
-    const freeMem = os.freemem();
 
     return c.json({
       cpu: {
-        model: cpus[0]?.model ?? "unknown",
         cores: cpus.length,
         loadAvg: os.loadavg(),
       },
       memory: {
-        total: totalMem,
-        free: freeMem,
-        used: totalMem - freeMem,
         heapUsed: process.memoryUsage().heapUsed,
         heapTotal: process.memoryUsage().heapTotal,
       },
       uptime: {
         process: Math.floor(process.uptime()),
-        system: Math.floor(os.uptime()),
       },
     });
   });

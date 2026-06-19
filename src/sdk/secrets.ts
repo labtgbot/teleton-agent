@@ -35,7 +35,8 @@ interface EncryptedFile {
  * Returns null only if neither is configured (legacy unencrypted mode).
  */
 function resolveSecretsEncryptionKey(): Buffer | null {
-  const envKey = process.env.TELETON_SECRETS_KEY || process.env.TELETON_WALLET_KEY;
+  // SECURITY FIX H-14: No fallback to wallet key — require explicit secrets key
+  const envKey = process.env.TELETON_SECRETS_KEY;
   if (!envKey) return null;
   if (envKey.length !== 64 || !/^[0-9a-fA-F]+$/.test(envKey)) {
     throw new Error(
@@ -112,15 +113,16 @@ function readSecretsFile(pluginName: string): Record<string, string> {
  *
  * This prevents silent fallback to plaintext storage of secrets,
  * addressing OWASP A07:2021 (Identification and Authentication Failures).
+ *
+ * SECURITY FIX H-14: Only TELETON_SECRETS_KEY is accepted — no wallet key fallback.
  */
 export function requireEncryptionKey(): Buffer {
   const key = resolveSecretsEncryptionKey();
   if (!key) {
     throw new Error(
       "No encryption key configured. Refusing to write secrets as plaintext.\n" +
-        "Set one of the following environment variables:\n" +
-        "  TELETON_SECRETS_KEY — preferred, dedicated key for plugin secrets\n" +
-        "  TELETON_WALLET_KEY  — fallback, reuses the wallet encryption key\n" +
+        "Set the following environment variable:\n" +
+        "  TELETON_SECRETS_KEY — dedicated key for plugin secrets\n" +
         "Generate a key with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
     );
   }
@@ -131,7 +133,7 @@ export function requireEncryptionKey(): Buffer {
  * Write a secret to the persisted secrets file.
  * Used by admin commands (/plugin set).
  *
- * Requires an encryption key (TELETON_SECRETS_KEY or TELETON_WALLET_KEY).
+ * Requires an encryption key (TELETON_SECRETS_KEY).
  * Throws if no key is configured — secrets are never stored as plaintext.
  */
 export function writePluginSecret(pluginName: string, key: string, value: string): void {
@@ -148,9 +150,6 @@ export function writePluginSecret(pluginName: string, key: string, value: string
 /**
  * Delete a secret from the persisted secrets file.
  * Used by admin commands (/plugin unset).
- *
- * Requires an encryption key (TELETON_SECRETS_KEY or TELETON_WALLET_KEY).
- * Throws if no key is configured — secrets are never stored as plaintext.
  */
 export function deletePluginSecret(pluginName: string, key: string): boolean {
   const encryptionKey = requireEncryptionKey();

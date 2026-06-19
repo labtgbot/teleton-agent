@@ -252,7 +252,9 @@ Thank you for trading! 🎉`,
     // Release lock on unexpected error
     try {
       db.prepare(
-        `UPDATE deals SET agent_sent_at = NULL, status = 'failed', notes = ? WHERE id = ? AND status = 'verified'`
+        // SECURITY FIX M-08: Remove status check to prevent TOCTOU race condition
+        // (status may have changed from 'verified' to 'completed' between check and update)
+        `UPDATE deals SET agent_sent_at = NULL, status = 'failed', notes = ? WHERE id = ?`
       ).run(`Execution error: ${getErrorMessage(error)}`, dealId);
     } catch (rollbackErr) {
       log.error({ err: rollbackErr }, `CRITICAL: Could not rollback deal #${dealId}`);

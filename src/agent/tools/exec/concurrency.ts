@@ -2,7 +2,17 @@ class ConcurrencyLimiter {
   private running = 0;
   private waiters: Array<{ resolve: () => void; reject: (err: Error) => void }> = [];
 
-  async acquire(maxConcurrent: number): Promise<void> {
+  acquire(maxConcurrent: number): void {
+    if (this.running < maxConcurrent) {
+      this.running++;
+      return;
+    }
+    throw new Error(
+      `Concurrency limit reached (${this.running}/${maxConcurrent}). Use acquireAsync() for queued waiting.`
+    );
+  }
+
+  async acquireAsync(maxConcurrent: number): Promise<void> {
     if (this.running < maxConcurrent) {
       this.running++;
       return;

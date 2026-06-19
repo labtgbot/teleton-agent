@@ -81,7 +81,11 @@ export function loadConfig(configPath: string = DEFAULT_CONFIG_PATH): Config {
 
   let raw: unknown;
   try {
-    raw = parse(content);
+    // SECURITY FIX L-01: Use JSON_SCHEMA to prevent YAML deserialization attacks (CWE-502)
+    // SECURITY FIX L-01: Use 'core' schema (YAML 1.2) for safe deserialization.
+    // This rejects unsafe YAML tags like !!js/function that could execute arbitrary code
+    // while still supporting standard YAML types (strings, numbers, booleans, etc.).
+    raw = parse(content, { schema: "core" });
   } catch (error) {
     throw new Error(`Invalid YAML in ${fullPath}: ${(error as Error).message}`);
   }
