@@ -259,12 +259,21 @@ function validateConfig(config: WorkflowConfig): string | null {
         if (ipv4Match) {
           const a = parseInt(ipv4Match[1]);
           const b = parseInt(ipv4Match[2]);
-          if (a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)) {
+          if (
+            a === 10 ||
+            (a === 172 && b >= 16 && b <= 31) ||
+            (a === 192 && b === 168) ||
+            (a === 169 && b === 254)
+          ) {
             return `actions[${i}] call_api URL points to private network (SSRF protection)`;
           }
         }
         // Block IPv6 private ranges
-        if (parsed.hostname.startsWith("fc") || parsed.hostname.startsWith("fd") || parsed.hostname.startsWith("fe80:")) {
+        if (
+          parsed.hostname.startsWith("fc") ||
+          parsed.hostname.startsWith("fd") ||
+          parsed.hostname.startsWith("fe80:")
+        ) {
           return `actions[${i}] call_api URL points to private network (SSRF protection)`;
         }
       } catch {

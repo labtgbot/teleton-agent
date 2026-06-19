@@ -435,11 +435,9 @@ export class ApiServer {
       // SECURITY FIX M-02: Never leak internal error details to clients
       const refId = randomBytes(4).toString("hex");
       log.error({ refId }, `Internal error detail: ${err.message}`);
-      return c.json(
-        createProblem(500, "Internal Server Error", `Reference: ${refId}`),
-        500,
-        { "Content-Type": "application/problem+json" }
-      );
+      return c.json(createProblem(500, "Internal Server Error", `Reference: ${refId}`), 500, {
+        "Content-Type": "application/problem+json",
+      });
     });
   }
 

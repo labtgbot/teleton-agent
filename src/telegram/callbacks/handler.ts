@@ -81,9 +81,7 @@ export class CallbackQueryHandler {
 
       // For non-legacy actions, require userId binding
       if (boundUserId === null && !LEGACY_UNBOUND_ACTIONS.has(action)) {
-        log.warn(
-          `[Callback] Rejecting unbound callback action "${action}" from user ${userId}`
-        );
+        log.warn(`[Callback] Rejecting unbound callback action "${action}" from user ${userId}`);
         await this.answerCallback(queryId, "⛔ Invalid callback format.");
         return;
       }

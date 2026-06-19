@@ -254,8 +254,7 @@ export class AutonomyManager {
     authResponse?: string
   ): void {
     // SECURITY FIX H-09: Enforce cryptographic auth for GOD_MODE transitions
-    const isGodModeTransition =
-      newLevel === GOD_MODE_LEVEL || this.currentLevel === GOD_MODE_LEVEL;
+    const isGodModeTransition = newLevel === GOD_MODE_LEVEL || this.currentLevel === GOD_MODE_LEVEL;
 
     if (isGodModeTransition) {
       if (!authChallenge || !authResponse) {
@@ -483,14 +482,20 @@ export class AutonomyManager {
       `Description: ${config.description}`,
       "",
       "--- CONFIGURATION ---",
-      `Max TON Transaction: ${config.maxTONTransaction === Infinity ? "∞" : config.maxTONTransaction} TON`,
-      `Max Daily Spending: ${config.maxDailySpending === Infinity ? "∞" : config.maxDailySpending} TON`,
+      `Max TON Transaction: ${
+        config.maxTONTransaction === Infinity ? "∞" : config.maxTONTransaction
+      } TON`,
+      `Max Daily Spending: ${
+        config.maxDailySpending === Infinity ? "∞" : config.maxDailySpending
+      } TON`,
       `Reporting Mode: ${config.reportingMode}`,
       `Escalation Threshold: ${(config.escalationThreshold * 100).toFixed(0)}%`,
       "",
       "--- METRICS ---",
       `Total Actions: ${this.metrics.totalActions}`,
-      `Approved: ${this.metrics.approvedActions} (${(this.metrics.approvalRate * 100).toFixed(1)}%)`,
+      `Approved: ${this.metrics.approvedActions} (${(this.metrics.approvalRate * 100).toFixed(
+        1
+      )}%)`,
       `Rejected: ${this.metrics.rejectedActions}`,
       `Escalated: ${this.metrics.escalatedActions}`,
       `Avg Response Time: ${this.metrics.averageResponseTimeMs.toFixed(0)}ms`,

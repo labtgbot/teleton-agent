@@ -6,7 +6,15 @@
  * any number of extra sources configured in config.marketplace.extra_sources.
  */
 
-import { existsSync, mkdirSync, writeFileSync, rmSync, readFileSync, readdirSync, statSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
@@ -74,8 +82,12 @@ function deriveSourceUrls(registryUrl: string): { pluginBaseUrl: string; githubA
         const [owner, repo, branch, ...rest] = parts;
         // base URL (strip the filename)
         const fileParts = rest.slice(0, -1);
-        const pluginBaseUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}${fileParts.length ? "/" + fileParts.join("/") : ""}`;
-        const githubApiBase = `https://api.github.com/repos/${owner}/${repo}/contents${fileParts.length ? "/" + fileParts.join("/") : ""}`;
+        const pluginBaseUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}${
+          fileParts.length ? "/" + fileParts.join("/") : ""
+        }`;
+        const githubApiBase = `https://api.github.com/repos/${owner}/${repo}/contents${
+          fileParts.length ? "/" + fileParts.join("/") : ""
+        }`;
         return { pluginBaseUrl, githubApiBase };
       }
     }
@@ -422,9 +434,7 @@ export class MarketplaceService {
         log.info(`[${pluginId}] Integrity verified (${computedHash.slice(0, 16)}...)`);
       } else if (srcDescriptor.isOfficial) {
         // Warn for official plugins without integrity hashes
-        log.warn(
-          `[${pluginId}] No integrity hash in registry — cannot verify plugin authenticity`
-        );
+        log.warn(`[${pluginId}] No integrity hash in registry — cannot verify plugin authenticity`);
       }
 
       // Install npm deps if package.json exists

@@ -151,7 +151,8 @@ export class WebUIServer {
         rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
       } else {
         entry.count++;
-        if (entry.count > 120) { // 120 requests per minute
+        if (entry.count > 120) {
+          // 120 requests per minute
           return c.json({ success: false, error: "Rate limit exceeded" }, 429);
         }
       }
@@ -166,7 +167,10 @@ export class WebUIServer {
       c.res.headers.set("X-Content-Type-Options", "nosniff");
       c.res.headers.set("X-Frame-Options", "DENY");
       c.res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-      c.res.headers.set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ws: wss:");
+      c.res.headers.set(
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ws: wss:"
+      );
     });
 
     // Auth for all /api/* routes

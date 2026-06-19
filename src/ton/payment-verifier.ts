@@ -72,7 +72,9 @@ export async function verifyPayment(
   // promise chain to prevent TOCTOU races on the used_transactions table.
   const prev = _verifyChain;
   let resolveNew: () => void = () => {};
-  _verifyChain = new Promise<void>((r) => { resolveNew = r; });
+  _verifyChain = new Promise<void>((r) => {
+    resolveNew = r;
+  });
   await prev;
   try {
     const {
