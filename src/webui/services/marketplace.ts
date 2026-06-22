@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Marketplace service — fetch, install, uninstall, and update plugins
  * from one or more community registries at GitHub.
  *
@@ -416,7 +416,7 @@ export class MarketplaceService {
       const _manifest = await this.fetchRemoteManifest(entry, srcDescriptor.pluginBaseUrl);
 
       // Create plugin directory
-      mkdirSync(pluginDir, { recursive: true });
+      mkdirSync(pluginDir, { recursive: true, mode: 0o700 });
 
       // Download the entire plugin directory from GitHub
       await this.downloadDir(entry.path, pluginDir, srcDescriptor.githubApiBase);
@@ -600,7 +600,7 @@ export class MarketplaceService {
       }
 
       if (item.type === "dir") {
-        mkdirSync(target, { recursive: true });
+        mkdirSync(target, { recursive: true, mode: 0o700 });
         await this.downloadDir(item.path, target, githubApiBase, depth + 1);
       } else if (item.type === "file" && item.download_url) {
         // Validate download URL is from GitHub
