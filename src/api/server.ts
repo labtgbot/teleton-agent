@@ -5,7 +5,6 @@ import { streamSSE } from "hono/streaming";
 import { serve, type ServerType } from "@hono/node-server";
 import type { HttpBindings } from "@hono/node-server";
 
-
 interface ApiVariables {
   keyPrefix: string;
   requestId: string;
