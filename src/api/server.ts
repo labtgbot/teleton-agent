@@ -4,6 +4,12 @@ import { timeout } from "hono/timeout";
 import { streamSSE } from "hono/streaming";
 import { serve, type ServerType } from "@hono/node-server";
 import type { HttpBindings } from "@hono/node-server";
+
+
+interface ApiVariables {
+  keyPrefix: string;
+  requestId: string;
+}
 import { createServer as createHttpsServer } from "node:https";
 import { cors } from "hono/cors";
 import { randomBytes, createHash } from "node:crypto";
@@ -95,7 +101,7 @@ export interface ApiCredentials {
 }
 
 export class ApiServer {
-  private app: Hono<{ Bindings: HttpBindings }>;
+  private app: Hono<{ Bindings: HttpBindings; Variables: ApiVariables }>;
   private server: ServerType | null = null;
   private deps: ApiServerDeps;
   private config: ApiConfig;
@@ -107,7 +113,7 @@ export class ApiServer {
   constructor(deps: ApiServerDeps, config: ApiConfig) {
     this.deps = deps;
     this.config = config;
-    this.app = new Hono<{ Bindings: HttpBindings }>();
+    this.app = new Hono<{ Bindings: HttpBindings; Variables: ApiVariables }>();
 
     // Determine key hash: use configured or generate new
     if (config.key_hash) {

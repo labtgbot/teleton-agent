@@ -1,5 +1,5 @@
 ﻿/**
- * Marketplace service вЂ” fetch, install, uninstall, and update plugins
+ * Marketplace service — fetch, install, uninstall, and update plugins
  * from one or more community registries at GitHub.
  *
  * Supports the built-in official registry (TONresistor/teleton-plugins) plus
@@ -69,8 +69,8 @@ interface ServiceDeps extends MarketplaceDeps {
  * Derive raw file base URL and GitHub Contents API base from a registry.json URL.
  * Handles the common pattern:
  *   https://raw.githubusercontent.com/OWNER/REPO/BRANCH/registry.json
- *   в†’ base:     https://raw.githubusercontent.com/OWNER/REPO/BRANCH
- *   в†’ api base: https://api.github.com/repos/OWNER/REPO/contents
+ *   → base:     https://raw.githubusercontent.com/OWNER/REPO/BRANCH
+ *   → api base: https://api.github.com/repos/OWNER/REPO/contents
  */
 function deriveSourceUrls(registryUrl: string): { pluginBaseUrl: string; githubApiBase: string } {
   try {
@@ -112,7 +112,7 @@ export class MarketplaceService {
     this.deps = deps;
   }
 
-  // в”Ђв”Ђ Source descriptors в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+  // ── Source descriptors ───────────────────────────────────────────────
 
   private getSources(): SourceDescriptor[] {
     const sources: SourceDescriptor[] = [
@@ -165,7 +165,7 @@ export class MarketplaceService {
     return result;
   }
 
-  // в”Ђв”Ђ Registry в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+  // ── Registry ────────────────────────────────────────────────────────
 
   async getRegistry(forceRefresh = false): Promise<RegistryEntry[]> {
     const sources = this.getSources();
@@ -184,7 +184,7 @@ export class MarketplaceService {
         continue;
       }
       for (const entry of result.value) {
-        // Deduplicate by id вЂ” first source (official) wins
+        // Deduplicate by id — first source (official) wins
         if (!seen.has(entry.id)) {
           seen.add(entry.id);
           merged.push({ ...entry, _sourceUrl: src.registryUrl } as RegistryEntry & {
@@ -235,7 +235,7 @@ export class MarketplaceService {
     const plugins = Array.isArray(data) ? data : data?.plugins;
     if (!Array.isArray(plugins)) throw new Error("Registry has no plugins array");
 
-    // Validate each entry вЂ” defense-in-depth against poisoned registries
+    // Validate each entry — defense-in-depth against poisoned registries
     const VALID_PATH = /^[a-zA-Z0-9][a-zA-Z0-9._\/-]*$/;
     for (const entry of plugins) {
       if (!entry.id || !entry.name || !entry.path) {
@@ -249,7 +249,7 @@ export class MarketplaceService {
     return plugins as RegistryEntry[];
   }
 
-  // в”Ђв”Ђ Remote manifest в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+  // ── Remote manifest ─────────────────────────────────────────────────
 
   private async fetchRemoteManifest(
     entry: RegistryEntry,
@@ -282,7 +282,7 @@ export class MarketplaceService {
     return data;
   }
 
-  // в”Ђв”Ђ List plugins (combined view) в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+  // ── List plugins (combined view) ────────────────────────────────────
 
   async listPlugins(forceRefresh = false): Promise<MarketplacePlugin[]> {
     const sources = this.getSources();
@@ -310,7 +310,7 @@ export class MarketplaceService {
       for (let i = 0; i < registry.length; i++) {
         const entry = registry[i];
 
-        // Deduplicate by id вЂ” first source wins
+        // Deduplicate by id — first source wins
         if (seenIds.has(entry.id)) continue;
         seenIds.add(entry.id);
 
@@ -381,7 +381,7 @@ export class MarketplaceService {
     return results;
   }
 
-  // в”Ђв”Ђ Install в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+  // ── Install ─────────────────────────────────────────────────────────
 
   async installPlugin(
     pluginId: string
@@ -434,7 +434,7 @@ export class MarketplaceService {
         log.info(`[${pluginId}] Integrity verified (${computedHash.slice(0, 16)}...)`);
       } else if (srcDescriptor.isOfficial) {
         // Warn for official plugins without integrity hashes
-        log.warn(`[${pluginId}] No integrity hash in registry вЂ” cannot verify plugin authenticity`);
+        log.warn(`[${pluginId}] No integrity hash in registry — cannot verify plugin authenticity`);
       }
 
       // Install npm deps if package.json exists
@@ -490,7 +490,7 @@ export class MarketplaceService {
     }
   }
 
-  // в”Ђв”Ђ Uninstall в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+  // ── Uninstall ───────────────────────────────────────────────────────
 
   async uninstallPlugin(pluginId: string): Promise<{ message: string }> {
     this.validateId(pluginId);
@@ -499,7 +499,7 @@ export class MarketplaceService {
       throw new ConflictError(`Plugin "${pluginId}" has an operation in progress`);
     }
 
-    // Resolve registry ID в†’ actual module (handles name mismatch)
+    // Resolve registry ID → actual module (handles name mismatch)
     const mod = this.findModuleByPluginId(pluginId);
     if (!mod) {
       throw new Error(`Plugin "${pluginId}" is not installed`);
@@ -533,7 +533,7 @@ export class MarketplaceService {
     }
   }
 
-  // в”Ђв”Ђ Update в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+  // ── Update ──────────────────────────────────────────────────────────
 
   async updatePlugin(
     pluginId: string
@@ -542,11 +542,11 @@ export class MarketplaceService {
     return this.installPlugin(pluginId);
   }
 
-  // в”Ђв”Ђ Helpers в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+  // ── Helpers ─────────────────────────────────────────────────────────
 
   /**
    * Resolve a registry plugin ID to the actual loaded module.
-   * Handles name mismatch: registry id "fragment" в†’ module name "Fragment Marketplace".
+   * Handles name mismatch: registry id "fragment" → module name "Fragment Marketplace".
    */
   private findModuleByPluginId(pluginId: string) {
     // Direct match (module name === registry id)
@@ -589,7 +589,7 @@ export class MarketplaceService {
     }> = await res.json();
 
     for (const item of entries) {
-      // Validate name вЂ” block path traversal
+      // Validate name — block path traversal
       if (!item.name || /[/\\]/.test(item.name) || item.name === ".." || item.name === ".") {
         throw new Error(`Invalid entry name in plugin directory: "${item.name}"`);
       }

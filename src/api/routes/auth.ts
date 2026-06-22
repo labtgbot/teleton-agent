@@ -5,7 +5,7 @@ export function createAuthRoutes() {
 
   app.post("/validate", (c) => {
     // If we reach this handler, auth middleware already validated the key
-    const keyPrefix = (c.get("keyPrefix") as string) ?? "unknown";
+    const keyPrefix = c.get("keyPrefix") ?? "unknown";
     return c.json({ valid: true, keyPrefix });
   });
 
